@@ -1,6 +1,6 @@
-# Portfolio HUD
+# Kryptonite Profile
 
-A single-page, static backtest HUD for **BTC, ETH, XRP, SOL and PANW** (Palo Alto Networks stock). You log the
+A single-page, static backtest for **BTC, ETH, XRP, SOL, PAXG, XAUT and PANW** (Palo Alto Networks stock). You log the
 purchases you actually made - coin, what you spent, and the date - and the app looks
 up that day's closing price, then tracks what each entry is worth now and over time.
 
@@ -35,4 +35,9 @@ Open `index.html`, or serve the folder statically:
 python -m http.server 8899
 ```
 
-Hosted at: https://offport.github.io/portfolio-hud/
+Hosted at: https://offport.github.io/kryptonite-profile/
+
+**Cross-device:** your encrypted vault lives only in the browser it was made in (per-origin
+localStorage, never on GitHub). To use it on another device, press **Backup** to download the
+encrypted file, move it over, and choose **Restore from a backup file** on the lock screen — the
+same passkey then unlocks the same data. The backup is ciphertext; it is useless without the passkey.

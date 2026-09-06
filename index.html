@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Portfolio HUD</title>
+<title>Kryptonite Profile</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpolygon points='24,2 33,14 29,44 24,46 19,44 15,14' fill='%232AF57E'/%3E%3Cpolygon points='24,2 29,44 24,46 19,44 15,14' fill='%2319C963'/%3E%3Cpolygon points='12,16 17,24 14,42 9,38 8,24' fill='%230FA355'/%3E%3Cpolygon points='37,18 40,26 38,40 33,42 31,26' fill='%230FA355'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
@@ -13,7 +13,7 @@
     --bg:#04090E; --panel:#08131B; --line:#143241; --line-soft:rgba(55,229,216,.10);
     --cyan:#37E5D8; --cyan-dim:rgba(55,229,216,.45); --text:#D5E6EC; --dim:#6C8796;
     --gain:#3DF2A1; --loss:#FF5C7A; --amber:#F5B942;
-    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF; --panw:#E8C84A;
+    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF; --panw:#E8C84A; --paxg:#D4AF37; --xaut:#B08D57;
     --font:'Rajdhani',ui-sans-serif,system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -90,7 +90,7 @@
   /* controls */
   label.field{display:block;font-size:13px;color:var(--dim);letter-spacing:.08em;margin:14px 0 6px}
   label.field:first-of-type{margin-top:0}
-  select,input[type=number],input[type=date]{
+  select,input[type=number],input[type=date],input[type=time]{
     width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);padding:10px 12px;
     font:600 16px var(--font);letter-spacing:.06em;font-variant-numeric:tabular-nums;color-scheme:dark;
   }
@@ -217,6 +217,8 @@
     font:700 13px var(--font);letter-spacing:.12em;padding:7px 12px;cursor:pointer;
   }
   .lockbtn:hover{color:var(--cyan);border-color:var(--cyan)}
+  .lockrestore{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+  .lockrestore span{font-size:12px;color:var(--dim);letter-spacing:.04em;line-height:1.5}
 
   @media (prefers-reduced-motion:reduce){.seg{transition:none}}
 </style>
@@ -238,6 +240,10 @@
     <div class="formerr" id="lockErr"></div>
     <p class="hint" id="lockHint">Your entries are encrypted with this passkey (PBKDF2 600k &rarr; AES-256-GCM) and stored only in this
       browser. The passkey itself is never stored anywhere - a wrong one simply fails to decrypt. There is no recovery.</p>
+    <div class="lockrestore">
+      <span>New device? Your data lives in the browser it was made on, not on a server.</span>
+      <button class="lockbtn" id="restoreBtn" type="button">Restore from a backup file&hellip;</button>
+    </div>
   </div>
 </div>
 
@@ -258,7 +264,7 @@
   <header>
     <div class="brand">
       <svg class="applogo" viewBox="0 0 48 48" aria-hidden="true"><use href="#kstone"/></svg>
-      <h1>PORTFOLIO HUD<small>BTC &middot; ETH &middot; XRP &middot; SOL &middot; PANW &mdash; BUY-ENTRY BACKTEST</small></h1>
+      <h1>KRYPTONITE PROFILE<small>BTC &middot; ETH &middot; XRP &middot; SOL &middot; PAXG &middot; XAUT &middot; PANW &mdash; BUY-ENTRY BACKTEST</small></h1>
     </div>
     <div class="hud-right">
       <div class="toprow">
@@ -267,6 +273,7 @@
           <button data-cur="CAD" class="on">CAD</button>
           <button data-cur="USDT">USDT</button>
         </div>
+        <button class="lockbtn" id="backupBtn" title="Download an encrypted backup to move to another device">BACKUP</button>
         <button class="lockbtn" id="lockBtn" title="Lock the app">LOCK</button>
       </div>
       <div class="status"><span class="dot" id="dot"></span><span id="statusText">Booting&hellip;</span></div>
@@ -341,7 +348,7 @@
         <h2>ADD A PURCHASE</h2>
         <label class="field" for="coinSel">Coin</label>
         <select id="coinSel">
-          <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option><option>PANW</option>
+          <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option><option>PAXG</option><option>XAUT</option><option>PANW</option>
         </select>
         <label class="field" for="amtIn">Amount spent (<span id="curLabel">CAD</span>)</label>
         <input type="number" id="amtIn" min="0" step="any" placeholder="1000" inputmode="decimal">
@@ -372,10 +379,14 @@
     { sym:'ETH',  pair:'ETHUSDT', color:getCSS('--eth') },
     { sym:'XRP',  pair:'XRPUSDT', color:getCSS('--xrp') },
     { sym:'SOL',  pair:'SOLUSDT', color:getCSS('--sol') },
-    { sym:'PANW', pair:'PANW', stock:true, color:getCSS('--panw') },   // a stock, not a coin - Yahoo Finance, USD
+    { sym:'PAXG', pair:'PAXGUSDT', color:getCSS('--paxg') },   // Pax Gold - gold-pegged token
+    { sym:'XAUT', pair:'XAUTUSDT', color:getCSS('--xaut') },   // Tether Gold - gold-pegged token
+    { sym:'PANW', pair:'PANW', stock:true, color:getCSS('--panw') },   // a stock, not a coin - stockanalysis.com, USD
   ];
   const BY_SYM = Object.fromEntries(COINS.map((c,i) => [c.sym, i]));
   const PERIODS = {
+    '1D': { interval:'5m',  limit:288, cc:{ ep:'histominute', agg:5  }, intraday:true },
+    '3D': { interval:'15m', limit:288, cc:{ ep:'histominute', agg:15 }, intraday:true },
     '1W': { interval:'1h',  limit:168, cc:{ ep:'histohour', agg:1  }, intraday:true, yh:{ range:'7d',  interval:'60m' } },
     '1M': { interval:'4h',  limit:180, cc:{ ep:'histohour', agg:4  }, intraday:true, yh:{ range:'1mo', interval:'1d'  } },
     '3M': { interval:'12h', limit:180, cc:{ ep:'histohour', agg:12 }, intraday:true, yh:{ range:'3mo', interval:'1d'  } },
@@ -388,7 +399,8 @@
   const CUR_FMT = { AED:{ pre:'AED ' }, CAD:{ pre:'C$' }, USDT:{ pre:'₮' } };
 
   // earliest date with a price (Binance listing days; PANW from 2016, the data source's 10-year window)
-  const LISTED = { BTC:'2017-08-17', ETH:'2017-08-17', XRP:'2018-05-04', SOL:'2020-08-11', PANW:'2016-09-08' };
+  const LISTED = { BTC:'2017-08-17', ETH:'2017-08-17', XRP:'2018-05-04', SOL:'2020-08-11',
+                   PAXG:'2020-08-02', XAUT:'2026-03-02', PANW:'2016-09-08' };
   const today = new Date().toISOString().slice(0,10);
   const state = { period:'1Y', currency:'CAD', mode:'pct',
                   entries:[],            // [{id, sym, amt, cur, date}] - amt in the currency it was typed in
@@ -473,6 +485,41 @@
   unlockBtn.addEventListener('click', unlock);
   [pk1, pk2].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); }));
   $('lockBtn').addEventListener('click', () => { vaultKey = null; location.reload(); });
+
+  /* ---------- backup / restore (cross-device without a server) ----------
+     The backup file IS the encrypted vault blob - moving it to another device
+     and restoring means the SAME passkey unlocks the SAME data there. Nothing
+     decrypts to move it; the file is useless without the passkey.            */
+  function downloadFile(name, text){
+    const blob = new Blob([text], { type:'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function exportVault(){
+    const raw = localStorage.getItem(VAULT);
+    if (!raw) return;
+    downloadFile(`kryptonite-profile-backup-${new Date().toISOString().slice(0,10)}.json`, raw);
+  }
+  function importVault(onDone){
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json,.json';
+    inp.addEventListener('change', async () => {
+      const file = inp.files[0]; if (!file) return;
+      try {
+        const text = await file.text();
+        const v = JSON.parse(text);
+        if (!v || !v.salt || !v.iv || !v.ct) throw new Error('not a backup');
+        localStorage.setItem(VAULT, text);
+        onDone();
+      } catch (e) { lockErr.textContent = 'That is not a valid backup file.'; }
+    });
+    inp.click();
+  }
+  $('backupBtn').addEventListener('click', exportVault);
+  $('restoreBtn').addEventListener('click', () => importVault(() => {
+    lockErr.textContent = ''; location.reload();   // reload so the lock screen now asks for the restored vault's passkey
+  }));
 
   /* ---------- tabs ---------- */
   $('tabs').addEventListener('click', e => {
@@ -752,8 +799,8 @@
     // at or before t. Works for crypto (near-exact timestamps) and for stocks,
     // whose daily closes never align to crypto candles and skip weekends.
     const aligned = c.series.map(pts => {
-      if (!pts.length) return master.map(() => null);   // a series that failed to load (e.g. the stock proxy)
-      let j = 0, last = pts[0].p; const out = [];
+      if (!pts.length) return master.map(() => null);   // a series that failed to load
+      let j = 0, last = null; const out = [];          // null before the first point: a late-listed asset (e.g. XAUT) has no line before it existed
       for (const t of master) {
         while (j < pts.length && pts[j].t <= t) { last = pts[j].p; j++; }
         out.push(last);
