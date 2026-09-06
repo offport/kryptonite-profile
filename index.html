@@ -13,7 +13,7 @@
     --bg:#04090E; --panel:#08131B; --line:#143241; --line-soft:rgba(55,229,216,.10);
     --cyan:#37E5D8; --cyan-dim:rgba(55,229,216,.45); --text:#D5E6EC; --dim:#6C8796;
     --gain:#3DF2A1; --loss:#FF5C7A; --amber:#F5B942;
-    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF; --panw:#E8C84A; --paxg:#D4AF37; --xaut:#B08D57;
+    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF; --panw:#E8C84A; --paxg:#D4AF37; --xaut:#B08D57; --sp500:#E36AB0;
     --font:'Rajdhani',ui-sans-serif,system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -367,7 +367,7 @@
         <h2>ADD A PURCHASE</h2>
         <label class="field" for="coinSel">Coin</label>
         <select id="coinSel">
-          <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option><option>PAXG</option><option>XAUT</option><option>PANW</option>
+          <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option><option>PAXG</option><option>XAUT</option><option>PANW</option><option>SP500</option>
         </select>
         <label class="field" for="amtIn">Amount spent (<span id="curLabel">CAD</span>)</label>
         <input type="number" id="amtIn" min="0" step="any" placeholder="1000" inputmode="decimal">
@@ -396,9 +396,9 @@
       <div class="panel">
         <h2>WHAT IT IS</h2>
         <p>A private dashboard to <b>track and monitor</b> a personal set of holdings &mdash; the coins
-          <b>BTC, ETH, XRP, SOL, PAXG, XAUT</b> and the stock <b>PANW</b>. You record the purchases you made (or are
-          considering), and it looks up the price on that exact date, then displays what each holding is worth now, your
-          profit or loss, and how it all breaks down &mdash; in AED, CAD and USDT at once.</p>
+          <b>BTC, ETH, XRP, SOL, PAXG, XAUT</b>, the stock <b>PANW</b>, and the <b>S&amp;P 500</b>. You record the
+          purchases you made (or are considering), and it looks up the price on that exact date, then displays what each
+          holding is worth now, your profit or loss, and how it all breaks down &mdash; in AED, CAD and USDT at once.</p>
         <p>It runs <b>entirely in your browser</b>. There is no account and no server: your data stays on this device and
           only moves in a backup file you choose to carry.</p>
       </div>
@@ -451,8 +451,8 @@
       <div class="panel">
         <h2>GOOD TO KNOW</h2>
         <ul class="steps">
-          <li>Crypto prices come from Binance; PANW from stockanalysis.com (split-adjusted); exchange rates from the ECB via Frankfurter. AED is pegged 3.6725, USDT counts 1:1 with USD.</li>
-          <li>XAUT history on the exchange starts March 2026, so its line and any earlier buy date are limited to that window. PAXG (also gold) reaches back to 2020.</li>
+          <li>Crypto prices come from Binance; PANW and the <b>S&amp;P 500</b> from stockanalysis.com (split/dividend-adjusted); exchange rates from the ECB via Frankfurter. AED is pegged 3.6725, USDT counts 1:1 with USD.</li>
+          <li>The <b>S&amp;P 500</b> is tracked through the <b>SPY</b> ETF (its total-return proxy), and its history &mdash; like PANW's &mdash; covers the last ten years. XAUT history on the exchange starts March 2026; PAXG (also gold) reaches back to 2020.</li>
           <li>These are estimates from historical closing prices &mdash; not brokerage records or advice.</li>
         </ul>
       </div>
@@ -470,6 +470,7 @@
     { sym:'PAXG', pair:'PAXGUSDT', color:getCSS('--paxg') },   // Pax Gold - gold-pegged token
     { sym:'XAUT', pair:'XAUTUSDT', color:getCSS('--xaut') },   // Tether Gold - gold-pegged token
     { sym:'PANW', pair:'PANW', stock:true, color:getCSS('--panw') },   // a stock, not a coin - stockanalysis.com, USD
+    { sym:'SP500', pair:'SPY', stock:true, color:getCSS('--sp500') },  // the S&P 500, tracked via the SPY ETF
   ];
   const BY_SYM = Object.fromEntries(COINS.map((c,i) => [c.sym, i]));
   const PERIODS = {
@@ -488,7 +489,7 @@
 
   // earliest date with a price (Binance listing days; PANW from 2016, the data source's 10-year window)
   const LISTED = { BTC:'2017-08-17', ETH:'2017-08-17', XRP:'2018-05-04', SOL:'2020-08-11',
-                   PAXG:'2020-08-02', XAUT:'2026-03-02', PANW:'2016-09-08' };
+                   PAXG:'2020-08-02', XAUT:'2026-03-02', PANW:'2016-09-08', SP500:'2016-09-08' };
   const today = new Date().toISOString().slice(0,10);
   const state = { period:'1Y', currency:'CAD', mode:'pct',
                   entries:[],            // [{id, sym, amt, cur, date}] - amt in the currency it was typed in
@@ -755,8 +756,8 @@
 
   async function fetchKlines(coin, p){
     if (coin.stock) {
-      try { return { src:'stockanalysis.com', pts: await stockHistory(coin.sym) }; }
-      catch (e) { return { src:'stockanalysis.com', pts: [] }; }   // non-fatal: crypto still renders, PANW line just omitted
+      try { return { src:'stockanalysis.com', pts: await stockHistory(coin.pair) }; }   // pair is the exchange symbol (e.g. SPY), sym is the display label
+      catch (e) { return { src:'stockanalysis.com', pts: [] }; }   // non-fatal: crypto still renders, the stock line is just omitted
     }
     for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
       try {

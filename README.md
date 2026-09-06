@@ -1,6 +1,6 @@
 # Kryptonite Profile
 
-A single-page, static backtest for **BTC, ETH, XRP, SOL, PAXG, XAUT and PANW** (Palo Alto Networks stock). You log the
+A single-page, static backtest for **BTC, ETH, XRP, SOL, PAXG, XAUT, PANW** (Palo Alto Networks stock) **and the S&P 500** (via the SPY ETF). You log the
 purchases you actually made - coin, what you spent, and the date - and the app looks
 up that day's closing price, then tracks what each entry is worth now and over time.
 
