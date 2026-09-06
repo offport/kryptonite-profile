@@ -13,7 +13,7 @@
     --bg:#04090E; --panel:#08131B; --line:#143241; --line-soft:rgba(55,229,216,.10);
     --cyan:#37E5D8; --cyan-dim:rgba(55,229,216,.45); --text:#D5E6EC; --dim:#6C8796;
     --gain:#3DF2A1; --loss:#FF5C7A; --amber:#F5B942;
-    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF;
+    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF; --panw:#E8C84A;
     --font:'Rajdhani',ui-sans-serif,system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -122,11 +122,20 @@
   .entry .mid{flex:1;min-width:0;display:flex;flex-direction:column}
   .entry .mid b{font-size:15px;font-weight:600}
   .entry .mid span{font-size:12px;color:var(--dim);letter-spacing:.06em}
+  .entry .reorder{flex:0 0 auto;display:flex;flex-direction:column;gap:2px}
+  .entry .mv{
+    background:none;border:1px solid var(--line);color:var(--dim);width:24px;height:15px;padding:0;
+    font:700 10px var(--font);line-height:1;cursor:pointer;
+  }
+  .entry .mv:hover:not(:disabled){color:var(--cyan);border-color:var(--cyan)}
+  .entry .mv:disabled{opacity:.3;cursor:default}
   .entry .rm{
     flex:0 0 auto;background:none;border:1px solid var(--line);color:var(--dim);width:28px;height:28px;
     font:700 15px var(--font);line-height:1;cursor:pointer;
   }
   .entry .rm:hover{color:var(--loss);border-color:var(--loss)}
+  .dtrow{display:grid;grid-template-columns:1fr 108px;gap:8px}
+  .subhint{font-size:11px;color:var(--dim);letter-spacing:.04em;margin-top:6px;line-height:1.4}
   .noentries{border:1px dashed var(--line);padding:14px 12px;font-size:13px;color:var(--dim);letter-spacing:.06em;line-height:1.5}
   .hint{font-size:12px;color:var(--dim);margin-top:10px;line-height:1.5}
 
@@ -235,7 +244,7 @@
   <header>
     <div class="brand">
       <svg class="applogo" viewBox="0 0 48 48" aria-hidden="true"><use href="#kstone"/></svg>
-      <h1>PORTFOLIO HUD<small>BTC &middot; ETH &middot; XRP &middot; SOL &mdash; BUY-ENTRY BACKTEST</small></h1>
+      <h1>PORTFOLIO HUD<small>BTC &middot; ETH &middot; XRP &middot; SOL &middot; PANW &mdash; BUY-ENTRY BACKTEST</small></h1>
     </div>
     <div class="hud-right">
       <div class="toprow">
@@ -317,12 +326,16 @@
         <h2>ADD A PURCHASE</h2>
         <label class="field" for="coinSel">Coin</label>
         <select id="coinSel">
-          <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option>
+          <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option><option>PANW</option>
         </select>
         <label class="field" for="amtIn">Amount spent (<span id="curLabel">CAD</span>)</label>
         <input type="number" id="amtIn" min="0" step="any" placeholder="1000" inputmode="decimal">
         <label class="field" for="dateIn">Bought on</label>
-        <input type="date" id="dateIn">
+        <div class="dtrow">
+          <input type="date" id="dateIn">
+          <input type="time" id="timeIn" aria-label="Time of purchase (optional)">
+        </div>
+        <div class="subhint">Time is optional. With a time the buy price is that hour's close; without one, the day's close.</div>
         <button class="addbtn" id="addBtn">+ ADD ENTRY</button>
         <div class="formerr" id="formErr"></div>
         <div class="hint">Each entry is valued from its own buy date: the app looks up that day's closing price and computes
@@ -340,30 +353,31 @@
 <script>
 (() => {
   const COINS = [
-    { sym:'BTC', pair:'BTCUSDT', color:getCSS('--btc') },
-    { sym:'ETH', pair:'ETHUSDT', color:getCSS('--eth') },
-    { sym:'XRP', pair:'XRPUSDT', color:getCSS('--xrp') },
-    { sym:'SOL', pair:'SOLUSDT', color:getCSS('--sol') },
+    { sym:'BTC',  pair:'BTCUSDT', color:getCSS('--btc') },
+    { sym:'ETH',  pair:'ETHUSDT', color:getCSS('--eth') },
+    { sym:'XRP',  pair:'XRPUSDT', color:getCSS('--xrp') },
+    { sym:'SOL',  pair:'SOLUSDT', color:getCSS('--sol') },
+    { sym:'PANW', pair:'PANW', stock:true, color:getCSS('--panw') },   // a stock, not a coin - Yahoo Finance, USD
   ];
   const BY_SYM = Object.fromEntries(COINS.map((c,i) => [c.sym, i]));
   const PERIODS = {
-    '1W': { interval:'1h',  limit:168, cc:{ ep:'histohour', agg:1  }, intraday:true },
-    '1M': { interval:'4h',  limit:180, cc:{ ep:'histohour', agg:4  }, intraday:true },
-    '3M': { interval:'12h', limit:180, cc:{ ep:'histohour', agg:12 }, intraday:true },
-    '6M': { interval:'1d',  limit:180, cc:{ ep:'histoday',  agg:1  } },
-    '1Y': { interval:'1d',  limit:365, cc:{ ep:'histoday',  agg:1  } },
-    '5Y': { interval:'1w',  limit:261, cc:{ ep:'histoday',  agg:7  } },
+    '1W': { interval:'1h',  limit:168, cc:{ ep:'histohour', agg:1  }, intraday:true, yh:{ range:'7d',  interval:'60m' } },
+    '1M': { interval:'4h',  limit:180, cc:{ ep:'histohour', agg:4  }, intraday:true, yh:{ range:'1mo', interval:'1d'  } },
+    '3M': { interval:'12h', limit:180, cc:{ ep:'histohour', agg:12 }, intraday:true, yh:{ range:'3mo', interval:'1d'  } },
+    '6M': { interval:'1d',  limit:180, cc:{ ep:'histoday',  agg:1  }, yh:{ range:'6mo', interval:'1d'  } },
+    '1Y': { interval:'1d',  limit:365, cc:{ ep:'histoday',  agg:1  }, yh:{ range:'1y',  interval:'1d'  } },
+    '5Y': { interval:'1w',  limit:261, cc:{ ep:'histoday',  agg:7  }, yh:{ range:'5y',  interval:'1wk' } },
   };
   const AED_PEG = 3.6725;
   const CURS = ['AED','CAD','USDT'];
   const CUR_FMT = { AED:{ pre:'AED ' }, CAD:{ pre:'C$' }, USDT:{ pre:'₮' } };
 
-  // earliest date with a price on the primary source (Binance listing days)
-  const LISTED = { BTC:'2017-08-17', ETH:'2017-08-17', XRP:'2018-05-04', SOL:'2020-08-11' };
+  // earliest date with a price (Binance listing days; PANW from 2016, the data source's 10-year window)
+  const LISTED = { BTC:'2017-08-17', ETH:'2017-08-17', XRP:'2018-05-04', SOL:'2020-08-11', PANW:'2016-09-08' };
   const today = new Date().toISOString().slice(0,10);
   const state = { period:'1Y', currency:'CAD', mode:'pct',
                   entries:[],            // [{id, sym, amt, cur, date}] - amt in the currency it was typed in
-                  buy:{}, cache:{}, fx:null, fxNote:'' };
+                  buy:{}, cache:{}, stock:{}, fx:null, fxNote:'' };
   let chart1, chart2;
 
   function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
@@ -473,29 +487,39 @@
   coinSel.addEventListener('change', () => { dateIn.min = LISTED[coinSel.value]; });
   dateIn.min = LISTED[coinSel.value];
 
+  const timeIn = $('timeIn');
   addBtn.addEventListener('click', async () => {
     formErr.textContent = '';
-    const sym = coinSel.value, amt = +amtIn.value, date = dateIn.value;
+    const sym = coinSel.value, amt = +amtIn.value, date = dateIn.value, time = timeIn.value || '';
     if (!(amt > 0)) { formErr.textContent = 'Enter the amount you spent.'; return; }
     if (!date || date > today) { formErr.textContent = 'Pick the purchase date.'; return; }
     if (date < LISTED[sym]) { formErr.textContent = `${sym} price history starts ${LISTED[sym]}.`; return; }
+    if (time && `${date}T${time}` > new Date().toISOString().slice(0,16)) {
+      formErr.textContent = 'That time is in the future.'; return; }
     addBtn.disabled = true; addBtn.textContent = 'FETCHING BUY PRICE…';
     try {
       await loadFX();
-      await fetchPriceAt(COINS[BY_SYM[sym]].pair, date);   // identify the price on that day first
+      await fetchPriceAt(COINS[BY_SYM[sym]], date, time);   // identify the price at that moment first
       state.entries.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
-                           sym, amt, cur: state.currency, date });
+                           sym, amt, cur: state.currency, date, time });
       saveEntries();
       amtIn.value = '';
       renderEntries();
       render();
-      setStatus('ok', `${sym} entry added at its ${date} close.`);
+      setStatus('ok', `${sym} entry added at its ${date}${time ? ' ' + time : ''} ${time ? 'hourly' : 'daily'} close.`);
     } catch (e) {
       formErr.textContent = `Could not get the ${sym} price for ${date} - check the connection and try again.`;
     } finally {
       addBtn.disabled = false; addBtn.textContent = '+ ADD ENTRY';
     }
   });
+
+  function moveEntry(id, dir){
+    const i = state.entries.findIndex(e => e.id === id), j = i + dir;
+    if (i < 0 || j < 0 || j >= state.entries.length) return;
+    [state.entries[i], state.entries[j]] = [state.entries[j], state.entries[i]];
+    saveEntries(); renderEntries(); render();
+  }
 
   function renderEntries(){
     const el = $('entries');
@@ -504,15 +528,23 @@
       el.innerHTML = `<div class="noentries">No purchases yet. Pick a coin, what you spent, and the date you bought - the app looks up that day's price and tracks the value from there.</div>`;
       return;
     }
-    el.replaceChildren(...state.entries.map(e => {
+    const n = state.entries.length;
+    el.replaceChildren(...state.entries.map((e, i) => {
       const c = COINS[BY_SYM[e.sym]];
       const d = document.createElement('div');
       d.className = 'entry'; d.style.setProperty('--c', c.color);
-      const b = state.buy[c.pair + '|' + e.date];
+      const b = state.buy[entryKey(e)];
       const buyTxt = b ? `@ ${CUR_FMT[e.cur].pre}${fmtMoney(b.usd * rateFor(e.cur, b.ts), b.usd < 10 ? 4 : 2)}` : '';
+      const when = e.date + (e.time ? ' ' + e.time : '');
       d.innerHTML = `<span class="tag">${e.sym}</span>
-        <span class="mid"><b>${CUR_FMT[e.cur].pre}${fmtMoney(e.amt, 0)}</b><span>${e.date} ${buyTxt}</span></span>
+        <span class="mid"><b>${CUR_FMT[e.cur].pre}${fmtMoney(e.amt, 0)}</b><span>${when} ${buyTxt}</span></span>
+        <span class="reorder">
+          <button class="mv up" aria-label="Move up" title="Move up"${i===0?' disabled':''}>&#9650;</button>
+          <button class="mv dn" aria-label="Move down" title="Move down"${i===n-1?' disabled':''}>&#9660;</button>
+        </span>
         <button class="rm" aria-label="Remove this ${e.sym} entry" title="Remove">&times;</button>`;
+      d.querySelector('.up').addEventListener('click', () => moveEntry(e.id, -1));
+      d.querySelector('.dn').addEventListener('click', () => moveEntry(e.id, 1));
       d.querySelector('.rm').addEventListener('click', () => {
         state.entries = state.entries.filter(x => x.id !== e.id);
         saveEntries(); renderEntries(); render();
@@ -533,38 +565,92 @@
   });
 
   /* ---------- data ---------- */
-  async function fetchKlines(pair, p){
+  // Stocks: stockanalysis.com serves 10 years of daily history with native CORS
+  // (no proxy, no key), including split/dividend-ADJUSTED closes (`a`) so a
+  // pre-split buy values correctly. One fetch per symbol feeds every period and
+  // every buy-price lookup.
+  async function stockHistory(sym){
+    if (state.stock[sym]) return state.stock[sym];
+    const r = await fetch(`https://stockanalysis.com/api/symbol/s/${sym}/history?range=10Y&period=Daily`);
+    if (!r.ok) throw new Error('stock ' + r.status);
+    const j = await r.json();
+    if (j.status !== 200 || !Array.isArray(j.data) || !j.data.length) throw new Error('no stock data');
+    const pts = j.data
+      .map(x => ({ t: Date.parse(x.t + 'T00:00:00Z'), p: (x.a != null ? x.a : x.c) }))
+      .filter(x => x.p != null).sort((a,b) => a.t - b.t);          // ascending for forward-fill
+    state.stock[sym] = pts; return pts;
+  }
+
+  async function fetchKlines(coin, p){
+    if (coin.stock) {
+      try { return { src:'stockanalysis.com', pts: await stockHistory(coin.sym) }; }
+      catch (e) { return { src:'stockanalysis.com', pts: [] }; }   // non-fatal: crypto still renders, PANW line just omitted
+    }
     for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
       try {
-        const r = await fetch(`${host}/api/v3/klines?symbol=${pair}&interval=${p.interval}&limit=${p.limit}`);
+        const r = await fetch(`${host}/api/v3/klines?symbol=${coin.pair}&interval=${p.interval}&limit=${p.limit}`);
         if (!r.ok) throw new Error(r.status);
         const d = await r.json();
         return { src:'Binance', pts: d.map(k => ({ t:k[0], p:+k[4] })) };
       } catch (e) { /* try next */ }
     }
-    const fsym = pair.replace('USDT','');
+    const fsym = coin.pair.replace('USDT','');
     const r = await fetch(`https://min-api.cryptocompare.com/data/v2/${p.cc.ep}?fsym=${fsym}&tsym=USD&limit=${p.limit}&aggregate=${p.cc.agg}`);
     const d = await r.json();
     if (d.Response !== 'Success') throw new Error('No price source reachable');
     return { src:'CryptoCompare', pts: d.Data.Data.map(k => ({ t:k.time*1000, p:k.close })) };
   }
 
-  async function fetchPriceAt(pair, date){       // USD close of the daily candle on that date
-    const key = pair+'|'+date; if (state.buy[key]) return state.buy[key];
-    const ts = Date.parse(date+'T00:00:00Z');
-    let price = null;
-    for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
-      try {
-        const r = await fetch(`${host}/api/v3/klines?symbol=${pair}&interval=1d&startTime=${ts}&limit=1`);
-        if (!r.ok) throw new Error(r.status);
-        const d = await r.json(); if (d.length) { price = +d[0][4]; break; }
-      } catch (e) { /* try next */ }
+  // cache key + buy timestamp for an entry. A time (HH:MM, local wall-clock) means
+  // the price is looked up on the hourly candle; no time falls back to the day.
+  const buyKey = (pair, date, time) => pair + '|' + date + (time ? 'T' + time : '');
+  const entryKey = e => buyKey(COINS[BY_SYM[e.sym]].pair, e.date, e.time);
+
+  async function fetchPriceAt(coin, date, time){   // USD close at that date (and hour, if given)
+    const pair = coin.pair, key = buyKey(pair, date, time);
+    if (state.buy[key]) return state.buy[key];
+    if (coin.stock) {                                // stockanalysis.com daily adjusted close at/before the buy day
+      const wantTs = time ? Date.parse(`${date}T${time}`) : Date.parse(date+'T00:00:00Z');
+      const boundary = Date.parse(date+'T23:59:59Z');   // stocks are daily; a time only sets when the holding starts
+      const pts = await stockHistory(pair);
+      const upto = pts.filter(x => x.t <= boundary);
+      const pick = upto.length ? upto[upto.length-1] : pts[0];
+      if (!pick) throw new Error('No buy price');
+      state.buy[key] = { usd: pick.p, ts: wantTs };
+      return state.buy[key];
     }
-    if (price === null) {
-      const r = await fetch(`https://min-api.cryptocompare.com/data/v2/histoday?fsym=${pair.replace('USDT','')}&tsym=USD&limit=1&toTs=${Math.floor(ts/1000)+86400}`);
-      const d = await r.json();
-      if (d.Response !== 'Success' || !d.Data.Data.length) throw new Error('No buy price');
-      price = d.Data.Data[d.Data.Data.length-1].close;
+    let ts, price = null;
+    if (time) {
+      ts = Date.parse(`${date}T${time}`);          // local time the user picked
+      const hourTs = Math.floor(ts / 3600000) * 3600000;
+      for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
+        try {
+          const r = await fetch(`${host}/api/v3/klines?symbol=${pair}&interval=1h&startTime=${hourTs}&limit=1`);
+          if (!r.ok) throw new Error(r.status);
+          const d = await r.json(); if (d.length) { price = +d[0][4]; break; }
+        } catch (e) { /* try next */ }
+      }
+      if (price === null) {
+        const r = await fetch(`https://min-api.cryptocompare.com/data/v2/histohour?fsym=${pair.replace('USDT','')}&tsym=USD&limit=1&toTs=${Math.floor(hourTs/1000)+3600}`);
+        const d = await r.json();
+        if (d.Response !== 'Success' || !d.Data.Data.length) throw new Error('No buy price');
+        price = d.Data.Data[d.Data.Data.length-1].close;
+      }
+    } else {
+      ts = Date.parse(date+'T00:00:00Z');
+      for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
+        try {
+          const r = await fetch(`${host}/api/v3/klines?symbol=${pair}&interval=1d&startTime=${ts}&limit=1`);
+          if (!r.ok) throw new Error(r.status);
+          const d = await r.json(); if (d.length) { price = +d[0][4]; break; }
+        } catch (e) { /* try next */ }
+      }
+      if (price === null) {
+        const r = await fetch(`https://min-api.cryptocompare.com/data/v2/histoday?fsym=${pair.replace('USDT','')}&tsym=USD&limit=1&toTs=${Math.floor(ts/1000)+86400}`);
+        const d = await r.json();
+        if (d.Response !== 'Success' || !d.Data.Data.length) throw new Error('No buy price');
+        price = d.Data.Data[d.Data.Data.length-1].close;
+      }
     }
     state.buy[key] = { usd:price, ts }; return state.buy[key];
   }
@@ -604,10 +690,11 @@
     try {
       await loadFX();
       if (!state.cache[key]) {
-        const res = await Promise.all(COINS.map(c => fetchKlines(c.pair, p)));
-        state.cache[key] = { src: res[0].src, series: res.map(r => r.pts) };
+        const res = await Promise.all(COINS.map(c => fetchKlines(c, p)));
+        state.cache[key] = { src: (res.find(r => r.src !== 'stockanalysis.com') || res[0]).src, series: res.map(r => r.pts) };
       }
-      await Promise.all(state.entries.map(e => fetchPriceAt(COINS[BY_SYM[e.sym]].pair, e.date)));
+      // a single entry's buy-price miss must not sink the whole load; build() drops entries with no buy
+      await Promise.all(state.entries.map(e => fetchPriceAt(COINS[BY_SYM[e.sym]], e.date, e.time).catch(() => {})));
       renderEntries();
       render();
     } catch (e) {
@@ -626,24 +713,32 @@
   function build(){
     const c = state.cache[state.period]; if (!c) return null;
     const master = c.series[0].map(x => x.t);           // BTC timestamps drive the x-axis
+    // forward-fill each series onto the master timeline: the most recent point
+    // at or before t. Works for crypto (near-exact timestamps) and for stocks,
+    // whose daily closes never align to crypto candles and skip weekends.
     const aligned = c.series.map(pts => {
-      const m = new Map(pts.map(x => [x.t, x.p])); let last = pts[0].p;
-      return master.map(t => { if (m.has(t)) last = m.get(t); return last; });
+      if (!pts.length) return master.map(() => null);   // a series that failed to load (e.g. the stock proxy)
+      let j = 0, last = pts[0].p; const out = [];
+      for (const t of master) {
+        while (j < pts.length && pts[j].t <= t) { last = pts[j].p; j++; }
+        out.push(last);
+      }
+      return out;
     });
     const disp = state.currency;
     const dispRates = master.map(t => rateFor(disp, t));
-    const prices = aligned.map(s => s.map((v,i) => v*dispRates[i]));   // display-currency prices
+    const prices = aligned.map(s => s.map((v,i) => v==null ? null : v*dispRates[i]));   // display-currency prices
 
     const entries = state.entries.map(e => {
       const ci = BY_SYM[e.sym];
-      const b = state.buy[COINS[ci].pair + '|' + e.date];
+      const b = state.buy[entryKey(e)];
       if (!b) return null;
       const amtUSD = e.amt / rateFor(e.cur, b.ts);
       const investedIn = Object.fromEntries(CURS.map(k => [k, amtUSD * rateFor(k, b.ts)]));
       return { ...e, ci, ts: b.ts, buyUSD: b.usd, amtUSD, investedIn };
     }).filter(Boolean);
 
-    const valuesUSD = entries.map(e => master.map((t,i) => t >= e.ts ? e.amtUSD * aligned[e.ci][i] / e.buyUSD : 0));
+    const valuesUSD = entries.map(e => master.map((t,i) => (t >= e.ts && aligned[e.ci][i] != null) ? e.amtUSD * aligned[e.ci][i] / e.buyUSD : 0));
     const values = valuesUSD.map(s => s.map((v,i) => v * dispRates[i]));
     const investedLine = master.map(t => entries.reduce((a,e) => a + (t >= e.ts ? e.investedIn[disp] : 0), 0));
     const total = master.map((_,i) => values.reduce((a,s) => a + s[i], 0));
@@ -673,15 +768,17 @@
 
     // chart 1 - prices
     const ds1 = COINS.map((c,i) => ({
-      label:c.sym, borderColor:c.color, backgroundColor:c.color, borderWidth:1.6, pointRadius:0, pointHoverRadius:4, tension:.15,
-      data: d.prices[i].map(v => state.mode==='pct' ? (v/d.prices[i][0]-1)*100 : v),
-      _price: d.prices[i], _start: d.prices[i][0],
+      label:c.sym, borderColor:c.color, backgroundColor:c.color, borderWidth:1.6, pointRadius:0, pointHoverRadius:4, tension:.15, spanGaps:true,
+      data: d.prices[i].map(v => v==null ? null : (state.mode==='pct' ? (v/d.prices[i].find(x=>x!=null)-1)*100 : v)),
+      _price: d.prices[i], _start: d.prices[i].find(x=>x!=null),
     }));
     const y1 = state.mode==='pct'
       ? { type:'linear', ticks:{ callback:v => (v>0?'+':'')+v+'%' }, grid:gridOpt() }
       : { type:'logarithmic', ticks:{ callback:v => fmtMoney(v, v<10?2:0) }, grid:gridOpt() };
     const tip1 = { callbacks:{ label: ctx => {
-      const ds = ctx.dataset, pr = ds._price[ctx.dataIndex], ch = (pr/ds._start-1)*100;
+      const ds = ctx.dataset, pr = ds._price[ctx.dataIndex];
+      if (pr == null) return undefined;
+      const ch = (pr/ds._start-1)*100;
       return ` ${ds.label}  ${CUR_FMT[cur].pre}${fmtMoney(pr, pr<10?4:2)}  (${ch>=0?'+':''}${ch.toFixed(2)}%)`;
     }}};
     chart1 = draw(chart1, 'c1', labels, ds1, y1, tip1, true);
@@ -744,9 +841,9 @@
       `<tr class="total"><td>TOTAL</td><td></td><td>${CUR_FMT[cur].pre}${fmtMoney(d.totalInv,0)}</td><td></td><td></td>
         <td>${CUR_FMT[cur].pre}${fmtMoney(last,0)}</td><td class="${pl>=0?'gain':'loss'}">${plPct>=0?'+':''}${plPct.toFixed(2)}%</td><td></td></tr>` : '');
 
-    $('note').textContent = `Prices from ${d.src} (USDT pairs, candle close). ` +
+    $('note').textContent = `Crypto prices from ${d.src} (USDT pairs); PANW from stockanalysis.com (daily split/dividend-adjusted close). ` +
       `AED at the fixed 3.6725 peg; USDT counted 1:1 with USD. ${state.fxNote} ` +
-      `Each entry's buy price is the daily close on its purchase date, and its value counts from that date - the portfolio line steps up as entries come in. ` +
+      `Each entry's buy price is the close on its purchase date (or hour, if a time is set), and its value counts from that moment - the portfolio line steps up as entries come in. ` +
       `"Put in" converts what you spent at the buy date's FX. The period buttons only change the chart window.`;
     setStatus('ok', `${d.src} · ${cur} · ${d.master.length} points · updated ${fmtDate(Date.now(), true)}`);
   }

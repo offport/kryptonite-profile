@@ -1,6 +1,6 @@
 # Portfolio HUD
 
-A single-page, static crypto backtest HUD for **BTC, ETH, XRP and SOL**. You log the
+A single-page, static backtest HUD for **BTC, ETH, XRP, SOL and PANW** (Palo Alto Networks stock). You log the
 purchases you actually made - coin, what you spent, and the date - and the app looks
 up that day's closing price, then tracks what each entry is worth now and over time.
 
@@ -23,9 +23,9 @@ up that day's closing price, then tracks what each entry is worth now and over t
 
 The page is static - there is no backend and no account. Your entries never leave
 your browser, and the repository contains no secrets of any kind: authentication is
-the ability to decrypt your own local data. Prices come from Binance (CryptoCompare
-fallback) and FX history from Frankfurter (ECB reference rates); AED uses the fixed
-3.6725 peg and USDT is counted 1:1 with USD.
+the ability to decrypt your own local data. Crypto prices come from Binance (CryptoCompare fallback); PANW from stockanalysis.com
+(split/dividend-adjusted daily closes, native CORS, no key); FX history from Frankfurter
+(ECB reference rates). AED uses the fixed 3.6725 peg and USDT is counted 1:1 with USD.
 
 ## Running it
 
