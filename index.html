@@ -90,10 +90,11 @@
   /* controls */
   label.field{display:block;font-size:13px;color:var(--dim);letter-spacing:.08em;margin:14px 0 6px}
   label.field:first-of-type{margin-top:0}
-  select,input[type=number],input[type=date],input[type=time]{
+  select,input[type=number],input[type=date],input[type=time],input[type=password]{
     width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);padding:10px 12px;
     font:600 16px var(--font);letter-spacing:.06em;font-variant-numeric:tabular-nums;color-scheme:dark;
   }
+  input[type=password]{letter-spacing:.18em}
   select{
     appearance:none;color:var(--cyan);letter-spacing:.1em;cursor:pointer;
     background-image:linear-gradient(45deg,transparent 50%,var(--cyan) 50%),linear-gradient(135deg,var(--cyan) 50%,transparent 50%);
@@ -150,6 +151,18 @@
   .serieschk button:hover{border-color:var(--c)}
   .dtrow{display:grid;grid-template-columns:1fr 108px;gap:8px}
   .subhint{font-size:11px;color:var(--dim);letter-spacing:.04em;margin-top:6px;line-height:1.4}
+
+  /* how-to guide */
+  .howto{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  @media (max-width:720px){.howto{grid-template-columns:1fr}}
+  .howto .panel p{margin:0 0 10px;color:var(--text);font-size:14px;line-height:1.6}
+  .howto .panel p:last-child{margin-bottom:0}
+  .howto .panel b{color:var(--cyan);font-weight:700}
+  .howto .steps{margin:0;padding-left:18px;display:grid;gap:9px}
+  .howto .steps li{color:var(--text);font-size:14px;line-height:1.55}
+  .howto .steps li::marker{color:var(--cyan)}
+  .howto .steps b{color:var(--cyan);font-weight:700}
+  .howto .steps em{color:var(--text);font-style:normal;text-decoration:underline;text-decoration-color:var(--cyan-dim)}
   .noentries{border:1px dashed var(--line);padding:14px 12px;font-size:13px;color:var(--dim);letter-spacing:.06em;line-height:1.5}
   .hint{font-size:12px;color:var(--dim);margin-top:10px;line-height:1.5}
 
@@ -264,7 +277,7 @@
   <header>
     <div class="brand">
       <svg class="applogo" viewBox="0 0 48 48" aria-hidden="true"><use href="#kstone"/></svg>
-      <h1>KRYPTONITE PROFILE<small>BTC &middot; ETH &middot; XRP &middot; SOL &middot; PAXG &middot; XAUT &middot; PANW &mdash; BUY-ENTRY BACKTEST</small></h1>
+      <h1>KRYPTONITE PROFILE<small>A PRIVATE DASHBOARD TO TRACK &amp; MONITOR YOUR HOLDINGS</small></h1>
     </div>
     <div class="hud-right">
       <div class="toprow">
@@ -283,10 +296,17 @@
   <nav class="tabs" id="tabs" role="tablist" aria-label="Views">
     <button data-tab="dash" class="on" role="tab" aria-selected="true">DASHBOARD</button>
     <button data-tab="entries" role="tab" aria-selected="false">ENTRIES <span class="tabcount" id="tabCount"></span></button>
+    <button data-tab="howto" role="tab" aria-selected="false">HOW TO</button>
   </nav>
 
   <!-- DASHBOARD: totals + graphs, first thing shown -->
   <main class="tabpanel stack" id="tab-dash" role="tabpanel">
+    <div class="panel">
+      <h2>ASSETS &mdash; INCLUDE OR EXCLUDE ACROSS THE DASHBOARD</h2>
+      <div class="serieschk" id="assetToggle" role="group" aria-label="Include or exclude assets across the whole dashboard"></div>
+      <div class="subhint">Unticking an asset removes it everywhere below - totals, profit/loss, allocation, the breakdown and both charts.</div>
+    </div>
+
     <div class="readouts">
       <div class="panel readout"><div class="k">INVESTED</div><div class="v" id="rInv">&mdash;</div><div class="s" id="rInvS">across all entries</div></div>
       <div class="panel readout"><div class="k">VALUE NOW</div><div class="v" id="rNow">&mdash;</div><div class="s" id="rNowS">&mdash;</div></div>
@@ -311,7 +331,6 @@
           <button data-mode="log">price (log)</button>
         </div>
       </div>
-      <div class="serieschk" id="seriesToggle" role="group" aria-label="Show or hide assets on the chart"></div>
       <div class="chartbox"><canvas id="c1"></canvas><div class="empty" id="e1" hidden></div></div>
     </div>
 
@@ -367,6 +386,75 @@
       <div class="panel">
         <h2>YOUR ENTRIES</h2>
         <div class="entries" id="entries"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW TO: the guide new users land on -->
+  <section class="tabpanel" id="tab-howto" role="tabpanel" hidden>
+    <div class="howto">
+      <div class="panel">
+        <h2>WHAT IT IS</h2>
+        <p>A private dashboard to <b>track and monitor</b> a personal set of holdings &mdash; the coins
+          <b>BTC, ETH, XRP, SOL, PAXG, XAUT</b> and the stock <b>PANW</b>. You record the purchases you made (or are
+          considering), and it looks up the price on that exact date, then displays what each holding is worth now, your
+          profit or loss, and how it all breaks down &mdash; in AED, CAD and USDT at once.</p>
+        <p>It runs <b>entirely in your browser</b>. There is no account and no server: your data stays on this device and
+          only moves in a backup file you choose to carry.</p>
+      </div>
+
+      <div class="panel">
+        <h2>WHAT IT ISN'T</h2>
+        <ul class="steps">
+          <li><b>Not a wallet or an exchange.</b> It holds no coins and moves no money &mdash; it only records what you tell it and shows the maths.</li>
+          <li><b>Not a live trading terminal.</b> Prices are historical closing values for tracking, not a real-time order book.</li>
+          <li><b>Not financial advice.</b> The value and profit/loss figures are estimates from past prices, not brokerage statements or recommendations.</li>
+          <li><b>Not a synced cloud account.</b> Nothing is stored online; there is no login that follows you between devices &mdash; you move your own encrypted backup.</li>
+          <li><b>Not a full market tracker.</b> It follows only the seven assets above, by design.</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <h2>ADDING A PURCHASE</h2>
+        <ol class="steps">
+          <li>Pick the display <b>currency</b> in the top-right (AED / CAD / USDT). New amounts are typed in this currency.</li>
+          <li>Open the <b>Entries</b> tab and choose the <b>coin or stock</b>, the <b>amount you spent</b>, and the <b>date</b> you bought.</li>
+          <li>Optionally set a <b>time</b> &mdash; crypto then uses that hour's price; stocks use the day's close.</li>
+          <li>Press <b>+ Add entry</b>. The app fetches that moment's price and starts tracking the holding from there.</li>
+          <li>Reorder entries with the <b>&#9650; / &#9660;</b> controls, or remove one with <b>&times;</b>.</li>
+        </ol>
+      </div>
+
+      <div class="panel">
+        <h2>READING THE DASHBOARD</h2>
+        <ul class="steps">
+          <li><b>Invested / Value now / Profit-loss</b> &mdash; your totals in the selected currency, with profit or loss against the money you put in.</li>
+          <li><b>What you own, in each currency</b> &mdash; the same totals shown in AED, CAD and USDT at once.</li>
+          <li><b>Assets &mdash; include or exclude</b> &mdash; untick any asset to drop it from <em>everything</em>: totals, allocation, the breakdown and both graphs.</li>
+          <li><b>Chart range</b> &mdash; 1D through 5Y changes the window on the price and portfolio charts.</li>
+          <li>Tap or hover the charts to read exact values at any point.</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <h2>SECURITY &amp; PRIVACY</h2>
+        <ul class="steps">
+          <li><b>Encrypted on your device.</b> Everything you save is encrypted with your passkey using <b>AES-256-GCM</b>, with the key stretched from your passkey by <b>PBKDF2-HMAC-SHA256 (600,000 iterations)</b> and a random salt &mdash; all in your browser.</li>
+          <li><b>The passkey is never stored or sent.</b> Unlocking simply tries to decrypt; a wrong passkey fails and reveals nothing. This is also why <b>there is no recovery</b> &mdash; forget it and the data is gone.</li>
+          <li><b>Nothing leaves your browser.</b> There is no account, no server, and no analytics. The only network calls are read-only price and exchange-rate lookups, which carry none of your data.</li>
+          <li><b>The code is public, your data isn't.</b> Even someone reading the source or the stored file sees only ciphertext &mdash; useless without your passkey.</li>
+          <li><b>Moving it is on your terms.</b> <b>Backup</b> (top-right) downloads the encrypted file; <b>Restore from a backup file</b> on the lock screen loads it on another device, where the same passkey unlocks it. <b>Lock</b> wipes the key from memory until you re-enter it.</li>
+          <li><b>Shared browser?</b> Anyone using this browser profile can reach the lock screen, but not your data without the passkey. Clearing the browser's site data erases the vault here &mdash; keep a backup.</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <h2>GOOD TO KNOW</h2>
+        <ul class="steps">
+          <li>Crypto prices come from Binance; PANW from stockanalysis.com (split-adjusted); exchange rates from the ECB via Frankfurter. AED is pegged 3.6725, USDT counts 1:1 with USD.</li>
+          <li>XAUT history on the exchange starts March 2026, so its line and any earlier buy date are limited to that window. PAXG (also gold) reaches back to 2020.</li>
+          <li>These are estimates from historical closing prices &mdash; not brokerage records or advice.</li>
+        </ul>
       </div>
     </div>
   </section>
@@ -474,6 +562,7 @@
       lockEl.hidden = true;
       [...$('curctl').children].forEach(b => b.classList.toggle('on', b.dataset.cur === state.currency));
       $('curLabel').textContent = state.currency;
+      if (firstRun) showTab('howto');   // a brand-new vault lands on the guide
       renderEntries();
       load();
     } catch (e) {
@@ -522,16 +611,17 @@
   }));
 
   /* ---------- tabs ---------- */
-  $('tabs').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    const tab = b.dataset.tab;
+  const TABS = ['dash', 'entries', 'howto'];
+  function showTab(tab){
     [...$('tabs').children].forEach(x => {
-      const on = x === b;
+      const on = x.dataset.tab === tab;
       x.classList.toggle('on', on); x.setAttribute('aria-selected', String(on));
     });
-    $('tab-dash').hidden = tab !== 'dash';
-    $('tab-entries').hidden = tab !== 'entries';
-    if (tab === 'dash' && chart1) { chart1.resize(); chart2 && chart2.resize(); }   // canvases sized while hidden read 0
+    TABS.forEach(t => { $('tab-' + t).hidden = t !== tab; });
+    if (tab === 'dash' && chart1) { chart1.resize(); if (chart2) chart2.resize(); }   // canvases sized while hidden read 0
+  }
+  $('tabs').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (b) showTab(b.dataset.tab);
   });
 
   /* ---------- currency switch (the corner control) ---------- */
@@ -627,10 +717,10 @@
     state.mode = b.dataset.mode; [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b)); render();
   });
 
-  /* ---------- per-asset show/hide on the price chart (a plain view preference,
-     stored unencrypted since it reveals nothing about holdings) ---------- */
+  /* ---------- dashboard-wide asset include/exclude (a plain view preference,
+     stored unencrypted since which assets you look at reveals no holdings) ---------- */
   try { (JSON.parse(localStorage.getItem('phud-hidden') || '[]')).forEach(s => state.hidden[s] = true); } catch (e) {}
-  const seriesEl = $('seriesToggle');
+  const seriesEl = $('assetToggle');
   seriesEl.replaceChildren(...COINS.map(c => {
     const btn = document.createElement('button');
     btn.style.setProperty('--c', c.color);
@@ -811,7 +901,8 @@
     const dispRates = master.map(t => rateFor(disp, t));
     const prices = aligned.map(s => s.map((v,i) => v==null ? null : v*dispRates[i]));   // display-currency prices
 
-    const entries = state.entries.map(e => {
+    // excluded assets drop out of every computation below - totals, allocation, breakdown, portfolio value
+    const entries = state.entries.filter(e => !state.hidden[e.sym]).map(e => {
       const ci = BY_SYM[e.sym];
       const b = state.buy[entryKey(e)];
       if (!b) return null;
@@ -855,7 +946,7 @@
       _price: d.prices[i], _start: d.prices[i].find(x=>x!=null),
     })).filter((_, i) => !state.hidden[COINS[i].sym]);
     $('e1').hidden = ds1.length > 0;
-    $('e1').textContent = 'All assets are hidden - tick one above to show it.';
+    $('e1').textContent = 'All assets are excluded - tick one in the Assets section to show it.';
     const y1 = state.mode==='pct'
       ? { type:'linear', ticks:{ callback:v => (v>0?'+':'')+v+'%' }, grid:gridOpt() }
       : { type:'logarithmic', ticks:{ callback:v => fmtMoney(v, v<10?2:0) }, grid:gridOpt() };
@@ -910,7 +1001,8 @@
     renderBar('barInv', d.invByCoin, d.totalInv); renderBar('barNow', d.nowByCoin, last);
     $('allocInvTotal').textContent = has ? CUR_FMT[cur].pre + fmtMoney(d.totalInv,0) : '';
     $('allocNowTotal').textContent = has ? CUR_FMT[cur].pre + fmtMoney(last,0) : '';
-    $('legend').innerHTML = COINS.map((c,i) => `<div style="--c:${c.color}"><b>${c.sym}</b><span>${pct(d.invByCoin[i],d.totalInv)} → ${pct(d.nowByCoin[i],last)}</span></div>`).join('');
+    $('legend').innerHTML = COINS.map((c,i) => ({c,i})).filter(({c,i}) => !state.hidden[c.sym] && (d.invByCoin[i] > 0 || d.nowByCoin[i] > 0))
+      .map(({c,i}) => `<div style="--c:${c.color}"><b>${c.sym}</b><span>${pct(d.invByCoin[i],d.totalInv)} → ${pct(d.nowByCoin[i],last)}</span></div>`).join('');
 
     // table - one row per entry, in the display currency
     $('tbody').innerHTML = d.entries.map((e,ei) => {
@@ -929,7 +1021,7 @@
       `AED at the fixed 3.6725 peg; USDT counted 1:1 with USD. ${state.fxNote} ` +
       `Each entry's buy price is the close on its purchase date (or hour, if a time is set), and its value counts from that moment - the portfolio line steps up as entries come in. ` +
       `"Put in" converts what you spent at the buy date's FX. The period buttons only change the chart window.`;
-    setStatus('ok', `${d.src} · ${cur} · ${d.master.length} points · updated ${fmtDate(Date.now(), true)}`);
+    setStatus('ok', `updated ${fmtDate(Date.now(), true)}`);
   }
 
   function draw(inst, id, labels, datasets, yScale, tooltip, legend){
