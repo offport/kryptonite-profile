@@ -340,6 +340,20 @@
     </div>
 
     <div class="panel">
+      <div class="chart-head"><h2>THE DOLLAR vs GOLD &mdash; <span id="p3Title">1Y</span></h2></div>
+      <div class="chartbox"><canvas id="c3"></canvas><div class="empty" id="e3" hidden></div></div>
+      <div class="subhint">What <b>$1</b> buys in gold, indexed to <b>100</b> at the start of the range. A falling line is the
+        dollar losing purchasing power as gold rises. Gold price from PAXG; independent of your holdings and the asset filter.</div>
+    </div>
+
+    <div class="panel">
+      <div class="chart-head"><h2>US DOLLAR INDEX (DXY) &mdash; <span id="p4Title">1Y</span></h2></div>
+      <div class="chartbox"><canvas id="c4"></canvas><div class="empty" id="e4" hidden></div></div>
+      <div class="subhint">The dollar against a basket of major currencies (EUR, JPY, GBP, CAD, SEK, CHF), indexed to
+        <b>100</b> at the start of the range. Rising is a stronger dollar, falling is weaker. Tracked via the <b>UUP</b> index fund.</div>
+    </div>
+
+    <div class="panel">
       <h2>ALLOCATION</h2>
       <div class="alloc">
         <div><div class="bar-label"><span>Invested</span><span id="allocInvTotal"></span></div><div class="bar" id="barInv"></div></div>
@@ -431,8 +445,9 @@
           <li><b>Invested / Value now / Profit-loss</b> &mdash; your totals in the selected currency, with profit or loss against the money you put in.</li>
           <li><b>What you own, in each currency</b> &mdash; the same totals shown in AED, CAD and USDT at once.</li>
           <li><b>Assets &mdash; include or exclude</b> &mdash; untick any asset to drop it from <em>everything</em>: totals, allocation, the breakdown and both graphs.</li>
-          <li><b>Chart range</b> &mdash; 1D through 5Y changes the window on the price and portfolio charts.</li>
-          <li>Tap or hover the charts to read exact values at any point.</li>
+          <li><b>Chart range</b> &mdash; 1D through 5Y changes the window on every chart at once.</li>
+          <li><b>The dollar vs gold</b> and <b>the dollar index (DXY)</b> &mdash; two macro charts, each indexed to 100 at the range start, showing the dollar's purchasing power against gold and against a basket of major currencies. They track the whole market, not your holdings.</li>
+          <li>Tap or hover any chart to read exact values at any point.</li>
         </ul>
       </div>
 
@@ -495,7 +510,7 @@
                   entries:[],            // [{id, sym, amt, cur, date}] - amt in the currency it was typed in
                   hidden:{},             // syms excluded from the price chart (a view preference)
                   buy:{}, cache:{}, stock:{}, fx:null, fxNote:'' };
-  let chart1, chart2;
+  let chart1, chart2, chart3, chart4;
 
   function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
   const $ = id => document.getElementById(id);
@@ -619,7 +634,7 @@
       x.classList.toggle('on', on); x.setAttribute('aria-selected', String(on));
     });
     TABS.forEach(t => { $('tab-' + t).hidden = t !== tab; });
-    if (tab === 'dash' && chart1) { chart1.resize(); if (chart2) chart2.resize(); }   // canvases sized while hidden read 0
+    if (tab === 'dash' && chart1) { [chart1, chart2, chart3, chart4].forEach(c => c && c.resize()); }   // canvases sized while hidden read 0
   }
   $('tabs').addEventListener('click', e => {
     const b = e.target.closest('button'); if (b) showTab(b.dataset.tab);
@@ -862,6 +877,7 @@
     [...perEl.children].forEach(b => b.disabled = true);
     try {
       await loadFX();
+      stockHistory('UUP').catch(() => {});   // DXY reference (dollar index fund); non-fatal, cached in state.stock
       if (!state.cache[key]) {
         const res = await Promise.all(COINS.map(c => fetchKlines(c, p)));
         state.cache[key] = { src: (res.find(r => r.src !== 'stockanalysis.com') || res[0]).src, series: res.map(r => r.pts) };
@@ -929,8 +945,18 @@
       const now = nowUSD * rateFor(k, lastTs);
       return { cur:k, inv, now, pl: now - inv, plPct: inv ? (now-inv)/inv*100 : 0 };
     });
+    // macro reference lines (unconverted USD, holdings-independent):
+    // gold from PAXG (~1oz), the dollar index from the UUP fund. Both forward-filled onto the master timeline.
+    const ffill = pts => {
+      if (!pts || !pts.length) return null;
+      let j = 0, last = null; const out = [];
+      for (const t of master) { while (j < pts.length && pts[j].t <= t) { last = pts[j].p; j++; } out.push(last); }
+      return out;
+    };
+    const goldUSD = BY_SYM['PAXG'] != null ? aligned[BY_SYM['PAXG']] : null;
+    const dxyRaw = ffill(state.stock['UUP']);
     return { master, prices, entries, totalInv, values, investedLine, total, entryNow,
-             invByCoin, nowByCoin, totalsByCur, src:c.src };
+             invByCoin, nowByCoin, totalsByCur, goldUSD, dxyRaw, src:c.src };
   }
 
   /* ---------- render ---------- */
@@ -939,6 +965,7 @@
     const cur = state.currency, p = PERIODS[state.period];
     const labels = d.master.map(t => fmtDate(t, p.intraday));
     $('p1Title').textContent = state.period; $('p2Title').textContent = state.period;
+    $('p3Title').textContent = state.period; $('p4Title').textContent = state.period;
 
     // chart 1 - prices (a hidden series is dropped so the axis autoscales to what's shown)
     const ds1 = COINS.map((c,i) => ({
@@ -973,6 +1000,30 @@
       return ` Value  ${CUR_FMT[cur].pre}${fmtMoney(v,0)}   P/L ${pl>=0?'+':'−'}${CUR_FMT[cur].pre}${fmtMoney(Math.abs(pl),0)}`;
     }}};
     chart2 = draw(chart2, 'c2', labels, ds2, { type:'linear', ticks:{ callback:v => fmtMoney(v,0) }, grid:gridOpt() }, tip2, false);
+
+    // charts 3 & 4 - macro: the dollar's purchasing power in gold, and the dollar index (DXY).
+    // Both rebased to 100 at the range's first available point, read in USD (unconverted).
+    // invert=true for gold: index = base/price*100, so it FALLS as gold rises (weaker dollar).
+    const macro = (inst, canvas, empty, raw, invert, name) => {
+      const base = raw && raw.find(v => v != null);
+      if (!base) { $(empty).hidden = false; $(empty).textContent = `${name} data is unavailable right now.`; return inst; }
+      $(empty).hidden = true;
+      const idx = raw.map(v => v == null ? null : (invert ? base / v : v / base) * 100);
+      const lastIdx = idx.filter(v => v != null).at(-1);
+      const col = lastIdx >= 100 ? getCSS('--gain') : getCSS('--loss');
+      const ds = [
+        { label: name, borderColor: col, backgroundColor: 'transparent', borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: .15, spanGaps: true, data: idx },
+        { label: 'start', borderColor: getCSS('--dim'), borderDash: [5,5], borderWidth: 1, pointRadius: 0, pointHoverRadius: 0, data: raw.map(v => v == null ? null : 100) },
+      ];
+      const tip = { callbacks: { label: ctx => {
+        if (ctx.datasetIndex === 1) return undefined;
+        const v = ctx.parsed.y; if (v == null) return undefined;
+        return ` ${v.toFixed(1)}  (${v - 100 >= 0 ? '+' : ''}${(v - 100).toFixed(2)}% vs range start)`;
+      }}};
+      return draw(inst, canvas, labels, ds, { type: 'linear', ticks: { callback: v => v.toFixed(0) }, grid: gridOpt() }, tip, false);
+    };
+    chart3 = macro(chart3, 'c3', 'e3', d.goldUSD, true,  'The dollar in gold');
+    chart4 = macro(chart4, 'c4', 'e4', d.dxyRaw,  false, 'Dollar index (DXY)');
 
     // readouts (display currency)
     const last = d.total[d.total.length-1], pl = last - d.totalInv, plPct = d.totalInv ? pl/d.totalInv*100 : 0;
