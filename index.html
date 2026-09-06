@@ -63,10 +63,24 @@
   .dot.ok{background:var(--gain);box-shadow:0 0 10px var(--gain)}
   .dot.err{background:var(--loss);box-shadow:0 0 10px var(--loss)}
 
-  .grid{display:grid;grid-template-columns:320px 1fr;gap:16px;margin-top:16px}
-  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+  /* tabs */
+  .tabs{display:flex;gap:8px;margin-top:16px}
+  .tabs button{
+    flex:0 0 auto;background:var(--bg);border:1px solid var(--line);border-bottom:none;color:var(--dim);
+    font:700 14px var(--font);letter-spacing:.14em;padding:11px 20px;cursor:pointer;
+  }
+  .tabs button.on{color:var(--cyan);background:var(--panel);border-color:var(--line);box-shadow:0 -2px 0 var(--cyan) inset}
+  .tabcount{display:inline-block;min-width:18px;margin-left:4px;padding:0 5px;font-size:11px;color:var(--bg);background:var(--cyan);border-radius:9px}
+  .tabcount:empty{display:none}
+  .tabpanel{margin-top:0;border-top:1px solid var(--line);padding-top:16px}
+  .tabpanel[hidden]{display:none}
+  .stack{min-width:0}
+  .stack>.panel{min-width:0}
+  .entrygrid{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
+  .entrygrid>.panel{min-width:0}
+  @media (max-width:720px){.entrygrid{grid-template-columns:1fr}}
 
-  .panel{position:relative;background:var(--panel);border:1px solid var(--line);padding:16px}
+  .panel{position:relative;background:var(--panel);border:1px solid var(--line);padding:16px;min-width:0}
   .panel::before,.panel::after{content:"";position:absolute;width:14px;height:14px;border-color:var(--cyan);border-style:solid;filter:drop-shadow(0 0 4px var(--cyan-dim))}
   .panel::before{top:-1px;left:-1px;border-width:2px 0 0 2px}
   .panel::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
@@ -98,7 +112,7 @@
   .formerr{font-size:13px;color:var(--loss);letter-spacing:.06em;margin-top:8px;min-height:1em}
 
   /* entry ledger */
-  .entries{margin-top:18px;display:grid;gap:8px}
+  .entries{display:grid;gap:8px}
   .entry{
     display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--bg);
     padding:8px 10px;font-variant-numeric:tabular-nums;
@@ -236,79 +250,91 @@
     </div>
   </header>
 
-  <div class="grid">
-    <!-- controls -->
-    <aside class="panel">
-      <h2>ADD A PURCHASE</h2>
-      <label class="field" for="coinSel">Coin</label>
-      <select id="coinSel">
-        <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option>
-      </select>
-      <label class="field" for="amtIn">Amount spent (<span id="curLabel">CAD</span>)</label>
-      <input type="number" id="amtIn" min="0" step="any" placeholder="1000" inputmode="decimal">
-      <label class="field" for="dateIn">Bought on</label>
-      <input type="date" id="dateIn">
-      <button class="addbtn" id="addBtn">+ ADD ENTRY</button>
-      <div class="formerr" id="formErr"></div>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Views">
+    <button data-tab="dash" class="on" role="tab" aria-selected="true">DASHBOARD</button>
+    <button data-tab="entries" role="tab" aria-selected="false">ENTRIES <span class="tabcount" id="tabCount"></span></button>
+  </nav>
 
-      <h2 style="margin-top:20px">ENTRIES</h2>
-      <div class="entries" id="entries"></div>
-      <div class="hint">Each entry is valued from its own buy date: the app looks up that day's closing price and computes
-        amount &times; price now &divide; price then. The currency switch in the corner sets what new entries are
-        typed in and what the charts display. Entries are saved in this browser.</div>
-      <div class="periods" id="periods"></div>
-    </aside>
+  <!-- DASHBOARD: totals + graphs, first thing shown -->
+  <main class="tabpanel stack" id="tab-dash" role="tabpanel">
+    <div class="readouts">
+      <div class="panel readout"><div class="k">INVESTED</div><div class="v" id="rInv">&mdash;</div><div class="s" id="rInvS">across all entries</div></div>
+      <div class="panel readout"><div class="k">VALUE NOW</div><div class="v" id="rNow">&mdash;</div><div class="s" id="rNowS">&mdash;</div></div>
+      <div class="panel readout"><div class="k">PROFIT / LOSS</div><div class="v" id="rPL">&mdash;</div><div class="s" id="rPLS">&mdash;</div></div>
+    </div>
 
-    <!-- main -->
-    <main class="stack">
-      <div class="readouts">
-        <div class="panel readout"><div class="k">INVESTED</div><div class="v" id="rInv">&mdash;</div><div class="s" id="rInvS">across all entries</div></div>
-        <div class="panel readout"><div class="k">VALUE NOW</div><div class="v" id="rNow">&mdash;</div><div class="s" id="rNowS">&mdash;</div></div>
-        <div class="panel readout"><div class="k">PROFIT / LOSS</div><div class="v" id="rPL">&mdash;</div><div class="s" id="rPLS">&mdash;</div></div>
-      </div>
+    <div class="panel">
+      <h2>WHAT YOU OWN, IN EACH CURRENCY</h2>
+      <div class="curtotals" id="curtotals"></div>
+    </div>
 
-      <div class="panel">
-        <h2>WHAT YOU OWN, IN EACH CURRENCY</h2>
-        <div class="curtotals" id="curtotals"></div>
-      </div>
+    <div class="panel">
+      <div class="chart-head"><h2>CHART RANGE</h2></div>
+      <div class="periods" id="periods" style="margin-top:0"></div>
+    </div>
 
-      <div class="panel">
-        <div class="chart-head">
-          <h2>PRICES &mdash; <span id="p1Title">1Y</span></h2>
-          <div class="toggle" id="modeToggle">
-            <button data-mode="pct" class="on">% change</button>
-            <button data-mode="log">price (log)</button>
-          </div>
-        </div>
-        <div class="chartbox"><canvas id="c1"></canvas><div class="empty" id="e1" hidden></div></div>
-      </div>
-
-      <div class="panel">
-        <div class="chart-head"><h2>PORTFOLIO VALUE &mdash; <span id="p2Title">1Y</span></h2></div>
-        <div class="chartbox"><canvas id="c2"></canvas><div class="empty" id="e2">Add a purchase entry to see the portfolio curve.</div></div>
-      </div>
-
-      <div class="panel">
-        <h2>ALLOCATION</h2>
-        <div class="alloc">
-          <div><div class="bar-label"><span>Invested</span><span id="allocInvTotal"></span></div><div class="bar" id="barInv"></div></div>
-          <div><div class="bar-label"><span>Value now</span><span id="allocNowTotal"></span></div><div class="bar" id="barNow"></div></div>
-          <div class="legend" id="legend"></div>
+    <div class="panel">
+      <div class="chart-head">
+        <h2>PRICES &mdash; <span id="p1Title">1Y</span></h2>
+        <div class="toggle" id="modeToggle">
+          <button data-mode="pct" class="on">% change</button>
+          <button data-mode="log">price (log)</button>
         </div>
       </div>
+      <div class="chartbox"><canvas id="c1"></canvas><div class="empty" id="e1" hidden></div></div>
+    </div>
 
-      <div class="panel">
-        <h2>BREAKDOWN</h2>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Coin</th><th>Bought on</th><th>Invested</th><th>Buy price</th><th>Price now</th><th>Value now</th><th>Change</th><th>Share now</th></tr></thead>
-            <tbody id="tbody"></tbody>
-          </table>
-        </div>
-        <div class="note" id="note"></div>
+    <div class="panel">
+      <div class="chart-head"><h2>PORTFOLIO VALUE &mdash; <span id="p2Title">1Y</span></h2></div>
+      <div class="chartbox"><canvas id="c2"></canvas><div class="empty" id="e2">Add a purchase entry &mdash; open the <b>Entries</b> tab &mdash; to see the portfolio curve.</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>ALLOCATION</h2>
+      <div class="alloc">
+        <div><div class="bar-label"><span>Invested</span><span id="allocInvTotal"></span></div><div class="bar" id="barInv"></div></div>
+        <div><div class="bar-label"><span>Value now</span><span id="allocNowTotal"></span></div><div class="bar" id="barNow"></div></div>
+        <div class="legend" id="legend"></div>
       </div>
-    </main>
-  </div>
+    </div>
+
+    <div class="panel">
+      <h2>BREAKDOWN</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Coin</th><th>Bought on</th><th>Invested</th><th>Buy price</th><th>Price now</th><th>Value now</th><th>Change</th><th>Share now</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="note" id="note"></div>
+    </div>
+  </main>
+
+  <!-- ENTRIES: the amount selector, on its own tab -->
+  <section class="tabpanel" id="tab-entries" role="tabpanel" hidden>
+    <div class="entrygrid">
+      <div class="panel">
+        <h2>ADD A PURCHASE</h2>
+        <label class="field" for="coinSel">Coin</label>
+        <select id="coinSel">
+          <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option>
+        </select>
+        <label class="field" for="amtIn">Amount spent (<span id="curLabel">CAD</span>)</label>
+        <input type="number" id="amtIn" min="0" step="any" placeholder="1000" inputmode="decimal">
+        <label class="field" for="dateIn">Bought on</label>
+        <input type="date" id="dateIn">
+        <button class="addbtn" id="addBtn">+ ADD ENTRY</button>
+        <div class="formerr" id="formErr"></div>
+        <div class="hint">Each entry is valued from its own buy date: the app looks up that day's closing price and computes
+          amount &times; price now &divide; price then. The currency switch in the corner sets what new entries are
+          typed in. Entries are encrypted and saved in this browser.</div>
+      </div>
+      <div class="panel">
+        <h2>YOUR ENTRIES</h2>
+        <div class="entries" id="entries"></div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
@@ -418,6 +444,19 @@
   [pk1, pk2].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); }));
   $('lockBtn').addEventListener('click', () => { vaultKey = null; location.reload(); });
 
+  /* ---------- tabs ---------- */
+  $('tabs').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const tab = b.dataset.tab;
+    [...$('tabs').children].forEach(x => {
+      const on = x === b;
+      x.classList.toggle('on', on); x.setAttribute('aria-selected', String(on));
+    });
+    $('tab-dash').hidden = tab !== 'dash';
+    $('tab-entries').hidden = tab !== 'entries';
+    if (tab === 'dash' && chart1) { chart1.resize(); chart2 && chart2.resize(); }   // canvases sized while hidden read 0
+  });
+
   /* ---------- currency switch (the corner control) ---------- */
   $('curctl').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -460,6 +499,7 @@
 
   function renderEntries(){
     const el = $('entries');
+    $('tabCount').textContent = state.entries.length || '';
     if (!state.entries.length) {
       el.innerHTML = `<div class="noentries">No purchases yet. Pick a coin, what you spent, and the date you bought - the app looks up that day's price and tracks the value from there.</div>`;
       return;
