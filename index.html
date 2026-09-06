@@ -13,7 +13,7 @@
     --bg:#04090E; --panel:#08131B; --line:#143241; --line-soft:rgba(55,229,216,.10);
     --cyan:#37E5D8; --cyan-dim:rgba(55,229,216,.45); --text:#D5E6EC; --dim:#6C8796;
     --gain:#3DF2A1; --loss:#FF5C7A; --amber:#F5B942;
-    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF; --panw:#E8C84A; --paxg:#D4AF37; --xaut:#B08D57; --sp500:#E36AB0;
+    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF; --panw:#E8C84A; --paxg:#D4AF37; --xaut:#B08D57; --sp500:#E36AB0; --gold:#FFD34D;
     --font:'Rajdhani',ui-sans-serif,system-ui,sans-serif;
   }
   *{box-sizing:border-box}
@@ -147,6 +147,8 @@
   }
   .serieschk button[aria-pressed="true"]{color:var(--text);border-color:var(--c)}
   .serieschk button[aria-pressed="true"] .box{background:var(--c)}
+  .serieschk button.ref{border-style:dashed;margin-left:6px}
+  .serieschk button.ref .box{border-radius:50%}
   .serieschk button[aria-pressed="false"]{opacity:.55}
   .serieschk button:hover{border-color:var(--c)}
   .dtrow{display:grid;grid-template-columns:1fr 108px;gap:8px}
@@ -304,7 +306,7 @@
     <div class="panel">
       <h2>ASSETS &mdash; INCLUDE OR EXCLUDE ACROSS THE DASHBOARD</h2>
       <div class="serieschk" id="assetToggle" role="group" aria-label="Include or exclude assets across the whole dashboard"></div>
-      <div class="subhint">Unticking an asset removes it everywhere below - totals, profit/loss, allocation, the breakdown and both charts.</div>
+      <div class="subhint">Unticking an asset removes it everywhere below - totals, profit/loss, allocation, the breakdown and both charts. <b>GOLD</b> (dashed) is a spot-gold reference line on the Prices chart, not a holding.</div>
     </div>
 
     <div class="readouts">
@@ -444,7 +446,7 @@
         <ul class="steps">
           <li><b>Invested / Value now / Profit-loss</b> &mdash; your totals in the selected currency, with profit or loss against the money you put in.</li>
           <li><b>What you own, in each currency</b> &mdash; the same totals shown in AED, CAD and USDT at once.</li>
-          <li><b>Assets &mdash; include or exclude</b> &mdash; untick any asset to drop it from <em>everything</em>: totals, allocation, the breakdown and both graphs.</li>
+          <li><b>Assets &mdash; include or exclude</b> &mdash; untick any asset to drop it from <em>everything</em>: totals, allocation, the breakdown and both graphs. The dashed <b>GOLD</b> chip toggles a spot-gold reference line on the Prices chart &mdash; a benchmark to compare against, not a holding.</li>
           <li><b>Chart range</b> &mdash; 1D through 5Y changes the window on every chart at once.</li>
           <li><b>The dollar vs gold</b> and <b>the dollar index (DXY)</b> &mdash; two macro charts, each indexed to 100 at the range start, showing the dollar's purchasing power against gold and against a basket of major currencies. They track the whole market, not your holdings.</li>
           <li>Tap or hover any chart to read exact values at any point.</li>
@@ -488,6 +490,8 @@
     { sym:'SP500', pair:'SPY', stock:true, color:getCSS('--sp500') },  // the S&P 500, tracked via the SPY ETF
   ];
   const BY_SYM = Object.fromEntries(COINS.map((c,i) => [c.sym, i]));
+  // spot GOLD (via the GLD ETF) - a price-chart reference line, not a tradeable holding
+  const GOLD_REF = { sym:'GOLD', pair:'GLD', color:getCSS('--gold') };
   const PERIODS = {
     '1D': { interval:'5m',  limit:288, cc:{ ep:'histominute', agg:5  }, intraday:true },
     '3D': { interval:'15m', limit:288, cc:{ ep:'histominute', agg:15 }, intraday:true },
@@ -737,10 +741,12 @@
      stored unencrypted since which assets you look at reveals no holdings) ---------- */
   try { (JSON.parse(localStorage.getItem('phud-hidden') || '[]')).forEach(s => state.hidden[s] = true); } catch (e) {}
   const seriesEl = $('assetToggle');
-  seriesEl.replaceChildren(...COINS.map(c => {
+  // GOLD is a price-chart reference (spot gold), shown after the holdings
+  seriesEl.replaceChildren(...[...COINS, GOLD_REF].map(c => {
     const btn = document.createElement('button');
     btn.style.setProperty('--c', c.color);
     btn.dataset.sym = c.sym;
+    if (c === GOLD_REF) { btn.classList.add('ref'); btn.title = 'Spot gold — a price-chart reference, not a holding'; }
     btn.setAttribute('aria-pressed', String(!state.hidden[c.sym]));
     btn.innerHTML = `<span class="box">&#10003;</span>${c.sym}`;
     btn.addEventListener('click', () => {
@@ -878,6 +884,7 @@
     try {
       await loadFX();
       stockHistory('UUP').catch(() => {});   // DXY reference (dollar index fund); non-fatal, cached in state.stock
+      stockHistory('GLD').catch(() => {});   // spot-GOLD reference for the price chart; non-fatal
       if (!state.cache[key]) {
         const res = await Promise.all(COINS.map(c => fetchKlines(c, p)));
         state.cache[key] = { src: (res.find(r => r.src !== 'stockanalysis.com') || res[0]).src, series: res.map(r => r.pts) };
@@ -955,8 +962,10 @@
     };
     const goldUSD = BY_SYM['PAXG'] != null ? aligned[BY_SYM['PAXG']] : null;
     const dxyRaw = ffill(state.stock['UUP']);
+    const goldSpot = ffill(state.stock['GLD']);   // spot-GOLD reference line, in display currency below
+    const goldSpotDisp = goldSpot ? goldSpot.map((v,i) => v == null ? null : v * dispRates[i]) : null;
     return { master, prices, entries, totalInv, values, investedLine, total, entryNow,
-             invByCoin, nowByCoin, totalsByCur, goldUSD, dxyRaw, src:c.src };
+             invByCoin, nowByCoin, totalsByCur, goldUSD, dxyRaw, goldSpotDisp, src:c.src };
   }
 
   /* ---------- render ---------- */
@@ -968,11 +977,16 @@
     $('p3Title').textContent = state.period; $('p4Title').textContent = state.period;
 
     // chart 1 - prices (a hidden series is dropped so the axis autoscales to what's shown)
-    const ds1 = COINS.map((c,i) => ({
-      label:c.sym, borderColor:c.color, backgroundColor:c.color, borderWidth:1.6, pointRadius:0, pointHoverRadius:4, tension:.15, spanGaps:true,
-      data: d.prices[i].map(v => v==null ? null : (state.mode==='pct' ? (v/d.prices[i].find(x=>x!=null)-1)*100 : v)),
-      _price: d.prices[i], _start: d.prices[i].find(x=>x!=null),
-    })).filter((_, i) => !state.hidden[COINS[i].sym]);
+    const priceLine = (label, color, series, extra) => ({
+      label, borderColor:color, backgroundColor:color, borderWidth:1.6, pointRadius:0, pointHoverRadius:4, tension:.15, spanGaps:true,
+      data: series.map(v => v==null ? null : (state.mode==='pct' ? (v/series.find(x=>x!=null)-1)*100 : v)),
+      _price: series, _start: series.find(x=>x!=null), ...extra,
+    });
+    const ds1 = COINS.map((c,i) => priceLine(c.sym, c.color, d.prices[i]))
+      .filter((_, i) => !state.hidden[COINS[i].sym]);
+    // spot GOLD reference line - drawn a touch heavier so it reads as the benchmark
+    if (d.goldSpotDisp && d.goldSpotDisp.some(v => v != null) && !state.hidden[GOLD_REF.sym])
+      ds1.push(priceLine(GOLD_REF.sym, GOLD_REF.color, d.goldSpotDisp, { borderWidth:2.4 }));
     $('e1').hidden = ds1.length > 0;
     $('e1').textContent = 'All assets are excluded - tick one in the Assets section to show it.';
     const y1 = state.mode==='pct'
