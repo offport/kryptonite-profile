@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfolio HUD</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpolygon points='24,2 33,14 29,44 24,46 19,44 15,14' fill='%232AF57E'/%3E%3Cpolygon points='24,2 29,44 24,46 19,44 15,14' fill='%2319C963'/%3E%3Cpolygon points='12,16 17,24 14,42 9,38 8,24' fill='%230FA355'/%3E%3Cpolygon points='37,18 40,26 38,40 33,42 31,26' fill='%230FA355'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#04090E; --panel:#08131B; --line:#143241; --line-soft:rgba(55,229,216,.10);
+    --cyan:#37E5D8; --cyan-dim:rgba(55,229,216,.45); --text:#D5E6EC; --dim:#6C8796;
+    --gain:#3DF2A1; --loss:#FF5C7A; --amber:#F5B942;
+    --btc:#F7931A; --eth:#9AA6FF; --xrp:#4FC3FF; --sol:#C77DFF;
+    --font:'Rajdhani',ui-sans-serif,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.35}
+  body{
+    background-image:
+      linear-gradient(var(--line-soft) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+    background-size:40px 40px;
+    min-height:100vh;
+  }
+  body::after{ /* faint scanlines */
+    content:"";position:fixed;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:18px 16px 40px}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:6px 4px 16px;border-bottom:1px solid var(--line)}
+  .brand{display:flex;align-items:center;gap:14px;min-width:0}
+  .applogo{width:44px;height:44px;flex:0 0 auto;filter:drop-shadow(0 0 9px rgba(61,242,161,.55))}
+  h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.14em;color:var(--cyan);text-shadow:0 0 14px rgba(55,229,216,.45)}
+  h1 small{display:block;font-size:12px;font-weight:600;letter-spacing:.22em;color:var(--dim);text-shadow:none;margin-top:2px}
+  .hud-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .toprow{display:flex;gap:8px;align-items:stretch}
+  .lockhead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  @media (max-width:640px){
+    .wrap{padding:12px 10px 32px}
+    h1{font-size:20px}
+    h1 small{font-size:10px;letter-spacing:.16em}
+    .applogo{width:36px;height:36px}
+    header{align-items:flex-start}
+    .hud-right{align-items:flex-start}
+    .panel{padding:13px 12px}
+    .readout .v{font-size:25px}
+    .grid{gap:12px}
+    .stack>.panel+.panel{margin-top:12px}
+  }
+  .curctl{display:flex;gap:6px}
+  .curctl button{
+    background:var(--bg);border:1px solid var(--line);color:var(--dim);
+    font:700 13px var(--font);letter-spacing:.12em;padding:7px 12px;cursor:pointer;
+  }
+  .curctl button.on{color:var(--bg);background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 12px var(--cyan-dim)}
+  .status{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--dim);letter-spacing:.06em}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber)}
+  .dot.ok{background:var(--gain);box-shadow:0 0 10px var(--gain)}
+  .dot.err{background:var(--loss);box-shadow:0 0 10px var(--loss)}
+
+  .grid{display:grid;grid-template-columns:320px 1fr;gap:16px;margin-top:16px}
+  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+
+  .panel{position:relative;background:var(--panel);border:1px solid var(--line);padding:16px}
+  .panel::before,.panel::after{content:"";position:absolute;width:14px;height:14px;border-color:var(--cyan);border-style:solid;filter:drop-shadow(0 0 4px var(--cyan-dim))}
+  .panel::before{top:-1px;left:-1px;border-width:2px 0 0 2px}
+  .panel::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0}
+  .panel h2{margin:0 0 12px;font-size:14px;font-weight:600;letter-spacing:.16em;color:var(--cyan)}
+  .stack>.panel+.panel{margin-top:16px}
+
+  /* controls */
+  label.field{display:block;font-size:13px;color:var(--dim);letter-spacing:.08em;margin:14px 0 6px}
+  label.field:first-of-type{margin-top:0}
+  select,input[type=number],input[type=date]{
+    width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);padding:10px 12px;
+    font:600 16px var(--font);letter-spacing:.06em;font-variant-numeric:tabular-nums;color-scheme:dark;
+  }
+  select{
+    appearance:none;color:var(--cyan);letter-spacing:.1em;cursor:pointer;
+    background-image:linear-gradient(45deg,transparent 50%,var(--cyan) 50%),linear-gradient(135deg,var(--cyan) 50%,transparent 50%);
+    background-position:calc(100% - 20px) 50%,calc(100% - 14px) 50%;background-size:6px 6px;background-repeat:no-repeat;
+  }
+  input[type=number]{-moz-appearance:textfield}
+  input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  select:focus,button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+  .addbtn{
+    width:100%;margin-top:14px;background:var(--cyan);border:1px solid var(--cyan);color:var(--bg);
+    font:700 15px var(--font);letter-spacing:.14em;padding:11px 6px;cursor:pointer;box-shadow:0 0 12px var(--cyan-dim);
+  }
+  .addbtn:hover{filter:brightness(1.08)}
+  .addbtn:disabled{opacity:.5;cursor:wait;box-shadow:none}
+  .formerr{font-size:13px;color:var(--loss);letter-spacing:.06em;margin-top:8px;min-height:1em}
+
+  /* entry ledger */
+  .entries{margin-top:18px;display:grid;gap:8px}
+  .entry{
+    display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--bg);
+    padding:8px 10px;font-variant-numeric:tabular-nums;
+  }
+  .entry .tag{font-weight:700;letter-spacing:.1em;font-size:14px;color:var(--c);flex:0 0 auto}
+  .entry .tag::before{content:"";display:inline-block;width:8px;height:8px;margin-right:7px;background:var(--c);box-shadow:0 0 8px var(--c)}
+  .entry .mid{flex:1;min-width:0;display:flex;flex-direction:column}
+  .entry .mid b{font-size:15px;font-weight:600}
+  .entry .mid span{font-size:12px;color:var(--dim);letter-spacing:.06em}
+  .entry .rm{
+    flex:0 0 auto;background:none;border:1px solid var(--line);color:var(--dim);width:28px;height:28px;
+    font:700 15px var(--font);line-height:1;cursor:pointer;
+  }
+  .entry .rm:hover{color:var(--loss);border-color:var(--loss)}
+  .noentries{border:1px dashed var(--line);padding:14px 12px;font-size:13px;color:var(--dim);letter-spacing:.06em;line-height:1.5}
+  .hint{font-size:12px;color:var(--dim);margin-top:10px;line-height:1.5}
+
+  .periods{display:flex;gap:6px;flex-wrap:wrap;margin-top:20px}
+  .periods button,.toggle button{
+    flex:1;min-width:44px;background:var(--bg);border:1px solid var(--line);color:var(--dim);
+    font:600 14px var(--font);letter-spacing:.08em;padding:8px 6px;cursor:pointer;
+  }
+  .periods button.on,.toggle button.on{color:var(--bg);background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 12px var(--cyan-dim)}
+  .periods button:disabled{opacity:.45;cursor:wait}
+  .toggle{display:flex;gap:6px}.toggle button{flex:0 0 auto;padding:5px 10px;font-size:12px}
+
+  /* readouts */
+  .readouts{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media (max-width:560px){.readouts{grid-template-columns:1fr}}
+  .readout .k{font-size:13px;color:var(--dim);letter-spacing:.1em}
+  .readout .v{font-size:30px;font-weight:700;line-height:1.1;margin-top:4px;font-variant-numeric:tabular-nums;color:var(--cyan);text-shadow:0 0 12px rgba(55,229,216,.35)}
+  .readout .s{font-size:13px;color:var(--dim);margin-top:4px;font-variant-numeric:tabular-nums}
+  .gain{color:var(--gain)!important;text-shadow:0 0 12px rgba(61,242,161,.35)!important}
+  .loss{color:var(--loss)!important;text-shadow:0 0 12px rgba(255,92,122,.35)!important}
+
+  /* totals across currencies */
+  .curtotals{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media (max-width:560px){.curtotals{grid-template-columns:1fr}}
+  .curtotal{border:1px solid var(--line);background:var(--bg);padding:12px 14px;font-variant-numeric:tabular-nums}
+  .curtotal .cc{font-size:13px;font-weight:700;letter-spacing:.16em;color:var(--cyan)}
+  .curtotal .own{font-size:24px;font-weight:700;margin-top:6px}
+  .curtotal .rows{margin-top:8px;display:grid;gap:3px;font-size:13px}
+  .curtotal .rows div{display:flex;justify-content:space-between;gap:10px}
+  .curtotal .rows span{color:var(--dim);letter-spacing:.06em}
+
+  .chart-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .chart-head h2{margin:0}
+  .chartbox{position:relative;height:320px}
+  @media (max-width:560px){.chartbox{height:260px}}
+  .empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:var(--dim);font-size:15px;letter-spacing:.06em;background:rgba(8,19,27,.85)}
+  .empty[hidden]{display:none}
+
+  /* allocation */
+  .alloc{display:grid;gap:14px}
+  .bar-label{font-size:13px;color:var(--dim);letter-spacing:.08em;margin-bottom:6px;display:flex;justify-content:space-between}
+  .bar{display:flex;height:28px;border:1px solid var(--line);background:var(--bg);overflow:hidden}
+  .seg{display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#04090E;background:var(--c);min-width:0;overflow:hidden;white-space:nowrap;transition:width .35s ease}
+  .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 16px;margin-top:4px;font-size:14px}
+  .legend div{display:flex;justify-content:space-between;gap:8px;font-variant-numeric:tabular-nums}
+  .legend b{font-weight:700;letter-spacing:.08em}
+  .legend b::before{content:"";display:inline-block;width:8px;height:8px;margin-right:8px;background:var(--c);box-shadow:0 0 8px var(--c)}
+  .legend span{color:var(--dim)}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+  th,td{padding:9px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{color:var(--dim);font-weight:600;letter-spacing:.08em;font-size:12px}
+  td:first-child,th:first-child{text-align:left;font-weight:700;letter-spacing:.08em}
+  tr.total td{border-bottom:none;font-weight:700}
+  .tablewrap{overflow-x:auto}
+  .note{font-size:12px;color:var(--dim);margin-top:10px;line-height:1.5}
+
+  /* lock screen */
+  .lockscrim{position:fixed;inset:0;z-index:60;background:rgba(4,9,14,.94);display:grid;place-items:center;padding:20px}
+  .lockscrim[hidden]{display:none}
+  .lockcard{width:min(420px,100%)}
+  .lockcard .hint{margin-top:12px}
+  .lockbtn{
+    background:var(--bg);border:1px solid var(--line);color:var(--dim);
+    font:700 13px var(--font);letter-spacing:.12em;padding:7px 12px;cursor:pointer;
+  }
+  .lockbtn:hover{color:var(--cyan);border-color:var(--cyan)}
+
+  @media (prefers-reduced-motion:reduce){.seg{transition:none}}
+</style>
+</head>
+<body>
+<div class="lockscrim" id="lock">
+  <div class="panel lockcard">
+    <div class="lockhead">
+      <svg class="applogo" viewBox="0 0 48 48" aria-hidden="true"><use href="#kstone"/></svg>
+      <h2 id="lockTitle" style="margin:0">ENTER PASSKEY</h2>
+    </div>
+    <label class="field" for="pk1">Passkey</label>
+    <input type="password" id="pk1" autocomplete="current-password" autofocus>
+    <div id="pk2wrap" hidden>
+      <label class="field" for="pk2">Confirm passkey</label>
+      <input type="password" id="pk2" autocomplete="new-password">
+    </div>
+    <button class="addbtn" id="unlockBtn">UNLOCK</button>
+    <div class="formerr" id="lockErr"></div>
+    <p class="hint" id="lockHint">Your entries are encrypted with this passkey (PBKDF2 600k &rarr; AES-256-GCM) and stored only in this
+      browser. The passkey itself is never stored anywhere - a wrong one simply fails to decrypt. There is no recovery.</p>
+  </div>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="kstone">
+      <polygon points="24,2 33,14 29,44 24,46 19,44 15,14" fill="#2AF57E"/>
+      <polygon points="24,2 29,44 24,46 19,44 15,14" fill="#19C963"/>
+      <polygon points="24,2 33,14 29,44 24,46 24,10" fill="#6BFFA8" opacity=".55"/>
+      <polygon points="12,16 17,24 14,42 9,38 8,24" fill="#0FA355"/>
+      <polygon points="37,18 40,26 38,40 33,42 31,26" fill="#0FA355"/>
+      <polygon points="37,18 40,26 38,40 35,41 36,24" fill="#2AF57E" opacity=".6"/>
+    </g>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg class="applogo" viewBox="0 0 48 48" aria-hidden="true"><use href="#kstone"/></svg>
+      <h1>PORTFOLIO HUD<small>BTC &middot; ETH &middot; XRP &middot; SOL &mdash; BUY-ENTRY BACKTEST</small></h1>
+    </div>
+    <div class="hud-right">
+      <div class="toprow">
+        <div class="curctl" id="curctl" role="group" aria-label="Display currency">
+          <button data-cur="AED">AED</button>
+          <button data-cur="CAD" class="on">CAD</button>
+          <button data-cur="USDT">USDT</button>
+        </div>
+        <button class="lockbtn" id="lockBtn" title="Lock the app">LOCK</button>
+      </div>
+      <div class="status"><span class="dot" id="dot"></span><span id="statusText">Booting&hellip;</span></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- controls -->
+    <aside class="panel">
+      <h2>ADD A PURCHASE</h2>
+      <label class="field" for="coinSel">Coin</label>
+      <select id="coinSel">
+        <option>BTC</option><option>ETH</option><option>XRP</option><option>SOL</option>
+      </select>
+      <label class="field" for="amtIn">Amount spent (<span id="curLabel">CAD</span>)</label>
+      <input type="number" id="amtIn" min="0" step="any" placeholder="1000" inputmode="decimal">
+      <label class="field" for="dateIn">Bought on</label>
+      <input type="date" id="dateIn">
+      <button class="addbtn" id="addBtn">+ ADD ENTRY</button>
+      <div class="formerr" id="formErr"></div>
+
+      <h2 style="margin-top:20px">ENTRIES</h2>
+      <div class="entries" id="entries"></div>
+      <div class="hint">Each entry is valued from its own buy date: the app looks up that day's closing price and computes
+        amount &times; price now &divide; price then. The currency switch in the corner sets what new entries are
+        typed in and what the charts display. Entries are saved in this browser.</div>
+      <div class="periods" id="periods"></div>
+    </aside>
+
+    <!-- main -->
+    <main class="stack">
+      <div class="readouts">
+        <div class="panel readout"><div class="k">INVESTED</div><div class="v" id="rInv">&mdash;</div><div class="s" id="rInvS">across all entries</div></div>
+        <div class="panel readout"><div class="k">VALUE NOW</div><div class="v" id="rNow">&mdash;</div><div class="s" id="rNowS">&mdash;</div></div>
+        <div class="panel readout"><div class="k">PROFIT / LOSS</div><div class="v" id="rPL">&mdash;</div><div class="s" id="rPLS">&mdash;</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>WHAT YOU OWN, IN EACH CURRENCY</h2>
+        <div class="curtotals" id="curtotals"></div>
+      </div>
+
+      <div class="panel">
+        <div class="chart-head">
+          <h2>PRICES &mdash; <span id="p1Title">1Y</span></h2>
+          <div class="toggle" id="modeToggle">
+            <button data-mode="pct" class="on">% change</button>
+            <button data-mode="log">price (log)</button>
+          </div>
+        </div>
+        <div class="chartbox"><canvas id="c1"></canvas><div class="empty" id="e1" hidden></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="chart-head"><h2>PORTFOLIO VALUE &mdash; <span id="p2Title">1Y</span></h2></div>
+        <div class="chartbox"><canvas id="c2"></canvas><div class="empty" id="e2">Add a purchase entry to see the portfolio curve.</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>ALLOCATION</h2>
+        <div class="alloc">
+          <div><div class="bar-label"><span>Invested</span><span id="allocInvTotal"></span></div><div class="bar" id="barInv"></div></div>
+          <div><div class="bar-label"><span>Value now</span><span id="allocNowTotal"></span></div><div class="bar" id="barNow"></div></div>
+          <div class="legend" id="legend"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>BREAKDOWN</h2>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>Coin</th><th>Bought on</th><th>Invested</th><th>Buy price</th><th>Price now</th><th>Value now</th><th>Change</th><th>Share now</th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="note" id="note"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  const COINS = [
+    { sym:'BTC', pair:'BTCUSDT', color:getCSS('--btc') },
+    { sym:'ETH', pair:'ETHUSDT', color:getCSS('--eth') },
+    { sym:'XRP', pair:'XRPUSDT', color:getCSS('--xrp') },
+    { sym:'SOL', pair:'SOLUSDT', color:getCSS('--sol') },
+  ];
+  const BY_SYM = Object.fromEntries(COINS.map((c,i) => [c.sym, i]));
+  const PERIODS = {
+    '1W': { interval:'1h',  limit:168, cc:{ ep:'histohour', agg:1  }, intraday:true },
+    '1M': { interval:'4h',  limit:180, cc:{ ep:'histohour', agg:4  }, intraday:true },
+    '3M': { interval:'12h', limit:180, cc:{ ep:'histohour', agg:12 }, intraday:true },
+    '6M': { interval:'1d',  limit:180, cc:{ ep:'histoday',  agg:1  } },
+    '1Y': { interval:'1d',  limit:365, cc:{ ep:'histoday',  agg:1  } },
+    '5Y': { interval:'1w',  limit:261, cc:{ ep:'histoday',  agg:7  } },
+  };
+  const AED_PEG = 3.6725;
+  const CURS = ['AED','CAD','USDT'];
+  const CUR_FMT = { AED:{ pre:'AED ' }, CAD:{ pre:'C$' }, USDT:{ pre:'₮' } };
+
+  // earliest date with a price on the primary source (Binance listing days)
+  const LISTED = { BTC:'2017-08-17', ETH:'2017-08-17', XRP:'2018-05-04', SOL:'2020-08-11' };
+  const today = new Date().toISOString().slice(0,10);
+  const state = { period:'1Y', currency:'CAD', mode:'pct',
+                  entries:[],            // [{id, sym, amt, cur, date}] - amt in the currency it was typed in
+                  buy:{}, cache:{}, fx:null, fxNote:'' };
+  let chart1, chart2;
+
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  const $ = id => document.getElementById(id);
+
+  /* ---------- encrypted vault ----------
+     Everything the user saves lives in ONE localStorage blob, AES-256-GCM
+     encrypted with a key derived from the passkey (PBKDF2-HMAC-SHA256, 600k
+     iterations, random 16-byte salt). The passkey and key are never stored;
+     "authentication" is the GCM tag - a wrong passkey fails to decrypt. The
+     page is static, so nothing sensitive can exist in the repo either.     */
+  const VAULT = 'phud-vault', ITERS = 600000;
+  let vaultKey = null, vaultSalt = null;
+  const te = new TextEncoder(), td = new TextDecoder();
+  const b64 = a => btoa(String.fromCharCode(...new Uint8Array(a)));
+  const unb64 = s => Uint8Array.from(atob(s), ch => ch.charCodeAt(0));
+  async function deriveKey(pass, salt){
+    const base = await crypto.subtle.importKey('raw', te.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name:'PBKDF2', salt, iterations:ITERS, hash:'SHA-256' },
+      base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+  }
+  async function saveVault(){
+    if (!vaultKey) return;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, vaultKey,
+      te.encode(JSON.stringify({ entries: state.entries, currency: state.currency })));
+    localStorage.setItem(VAULT, JSON.stringify({ v:1, iters:ITERS, salt:b64(vaultSalt), iv:b64(iv), ct:b64(ct) }));
+  }
+  async function openVault(pass){
+    const raw = localStorage.getItem(VAULT);
+    if (!raw) {                                    // first run: create an empty vault
+      vaultSalt = crypto.getRandomValues(new Uint8Array(16));
+      vaultKey = await deriveKey(pass, vaultSalt);
+      await saveVault();
+      return { entries: [], currency: state.currency };
+    }
+    const v = JSON.parse(raw);
+    vaultSalt = unb64(v.salt);
+    vaultKey = await deriveKey(pass, vaultSalt);
+    const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: unb64(v.iv) }, vaultKey, unb64(v.ct));
+    return JSON.parse(td.decode(pt));              // throws before this line on a wrong passkey
+  }
+  function saveEntries(){ saveVault().catch(() => setStatus('err', 'Could not save - storage blocked?')); }
+
+  /* ---------- lock screen ---------- */
+  const lockEl = $('lock'), pk1 = $('pk1'), pk2 = $('pk2'), lockErr = $('lockErr'), unlockBtn = $('unlockBtn');
+  const firstRun = !localStorage.getItem(VAULT);
+  if (firstRun) {
+    $('lockTitle').textContent = 'SET A PASSKEY';
+    $('pk2wrap').hidden = false;
+    unlockBtn.textContent = 'CREATE VAULT';
+  }
+  async function unlock(){
+    lockErr.textContent = '';
+    const pass = pk1.value;
+    if (!pass) { lockErr.textContent = 'Enter the passkey.'; return; }
+    if (firstRun && pass !== pk2.value) { lockErr.textContent = 'The two passkeys do not match.'; return; }
+    unlockBtn.disabled = true; unlockBtn.textContent = 'DERIVING KEY…';
+    try {
+      const data = await openVault(pass);
+      state.entries = (data.entries || []).filter(e => BY_SYM[e.sym] != null && e.amt > 0 &&
+        typeof e.date === 'string' && e.date >= LISTED[e.sym] && e.date <= today)
+        .map(e => ({ ...e, cur: CURS.includes(e.cur) ? e.cur : 'CAD' }));
+      if (CURS.includes(data.currency)) state.currency = data.currency;
+      pk1.value = ''; pk2.value = '';
+      lockEl.hidden = true;
+      [...$('curctl').children].forEach(b => b.classList.toggle('on', b.dataset.cur === state.currency));
+      $('curLabel').textContent = state.currency;
+      renderEntries();
+      load();
+    } catch (e) {
+      lockErr.textContent = 'That passkey does not decrypt the saved data.';
+    } finally {
+      unlockBtn.disabled = false; unlockBtn.textContent = firstRun ? 'CREATE VAULT' : 'UNLOCK';
+    }
+  }
+  unlockBtn.addEventListener('click', unlock);
+  [pk1, pk2].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); }));
+  $('lockBtn').addEventListener('click', () => { vaultKey = null; location.reload(); });
+
+  /* ---------- currency switch (the corner control) ---------- */
+  $('curctl').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.currency = b.dataset.cur;
+    [...$('curctl').children].forEach(x => x.classList.toggle('on', x === b));
+    $('curLabel').textContent = state.currency;
+    saveEntries(); renderEntries(); render();
+  });
+
+  /* ---------- entries: UI ---------- */
+  const coinSel = $('coinSel'), amtIn = $('amtIn'), dateIn = $('dateIn'), addBtn = $('addBtn'), formErr = $('formErr');
+  dateIn.max = today;
+  dateIn.value = today;
+  coinSel.addEventListener('change', () => { dateIn.min = LISTED[coinSel.value]; });
+  dateIn.min = LISTED[coinSel.value];
+
+  addBtn.addEventListener('click', async () => {
+    formErr.textContent = '';
+    const sym = coinSel.value, amt = +amtIn.value, date = dateIn.value;
+    if (!(amt > 0)) { formErr.textContent = 'Enter the amount you spent.'; return; }
+    if (!date || date > today) { formErr.textContent = 'Pick the purchase date.'; return; }
+    if (date < LISTED[sym]) { formErr.textContent = `${sym} price history starts ${LISTED[sym]}.`; return; }
+    addBtn.disabled = true; addBtn.textContent = 'FETCHING BUY PRICE…';
+    try {
+      await loadFX();
+      await fetchPriceAt(COINS[BY_SYM[sym]].pair, date);   // identify the price on that day first
+      state.entries.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2,7),
+                           sym, amt, cur: state.currency, date });
+      saveEntries();
+      amtIn.value = '';
+      renderEntries();
+      render();
+      setStatus('ok', `${sym} entry added at its ${date} close.`);
+    } catch (e) {
+      formErr.textContent = `Could not get the ${sym} price for ${date} - check the connection and try again.`;
+    } finally {
+      addBtn.disabled = false; addBtn.textContent = '+ ADD ENTRY';
+    }
+  });
+
+  function renderEntries(){
+    const el = $('entries');
+    if (!state.entries.length) {
+      el.innerHTML = `<div class="noentries">No purchases yet. Pick a coin, what you spent, and the date you bought - the app looks up that day's price and tracks the value from there.</div>`;
+      return;
+    }
+    el.replaceChildren(...state.entries.map(e => {
+      const c = COINS[BY_SYM[e.sym]];
+      const d = document.createElement('div');
+      d.className = 'entry'; d.style.setProperty('--c', c.color);
+      const b = state.buy[c.pair + '|' + e.date];
+      const buyTxt = b ? `@ ${CUR_FMT[e.cur].pre}${fmtMoney(b.usd * rateFor(e.cur, b.ts), b.usd < 10 ? 4 : 2)}` : '';
+      d.innerHTML = `<span class="tag">${e.sym}</span>
+        <span class="mid"><b>${CUR_FMT[e.cur].pre}${fmtMoney(e.amt, 0)}</b><span>${e.date} ${buyTxt}</span></span>
+        <button class="rm" aria-label="Remove this ${e.sym} entry" title="Remove">&times;</button>`;
+      d.querySelector('.rm').addEventListener('click', () => {
+        state.entries = state.entries.filter(x => x.id !== e.id);
+        saveEntries(); renderEntries(); render();
+      });
+      return d;
+    }));
+  }
+
+  const perEl = $('periods');
+  Object.keys(PERIODS).forEach(k => {
+    const b = document.createElement('button'); b.textContent = k; b.dataset.p = k; if (k===state.period) b.classList.add('on');
+    b.addEventListener('click', () => { state.period = k; [...perEl.children].forEach(x=>x.classList.toggle('on', x===b)); load(); });
+    perEl.appendChild(b);
+  });
+  $('modeToggle').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.mode = b.dataset.mode; [...e.currentTarget.children].forEach(x=>x.classList.toggle('on', x===b)); render();
+  });
+
+  /* ---------- data ---------- */
+  async function fetchKlines(pair, p){
+    for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
+      try {
+        const r = await fetch(`${host}/api/v3/klines?symbol=${pair}&interval=${p.interval}&limit=${p.limit}`);
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        return { src:'Binance', pts: d.map(k => ({ t:k[0], p:+k[4] })) };
+      } catch (e) { /* try next */ }
+    }
+    const fsym = pair.replace('USDT','');
+    const r = await fetch(`https://min-api.cryptocompare.com/data/v2/${p.cc.ep}?fsym=${fsym}&tsym=USD&limit=${p.limit}&aggregate=${p.cc.agg}`);
+    const d = await r.json();
+    if (d.Response !== 'Success') throw new Error('No price source reachable');
+    return { src:'CryptoCompare', pts: d.Data.Data.map(k => ({ t:k.time*1000, p:k.close })) };
+  }
+
+  async function fetchPriceAt(pair, date){       // USD close of the daily candle on that date
+    const key = pair+'|'+date; if (state.buy[key]) return state.buy[key];
+    const ts = Date.parse(date+'T00:00:00Z');
+    let price = null;
+    for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
+      try {
+        const r = await fetch(`${host}/api/v3/klines?symbol=${pair}&interval=1d&startTime=${ts}&limit=1`);
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json(); if (d.length) { price = +d[0][4]; break; }
+      } catch (e) { /* try next */ }
+    }
+    if (price === null) {
+      const r = await fetch(`https://min-api.cryptocompare.com/data/v2/histoday?fsym=${pair.replace('USDT','')}&tsym=USD&limit=1&toTs=${Math.floor(ts/1000)+86400}`);
+      const d = await r.json();
+      if (d.Response !== 'Success' || !d.Data.Data.length) throw new Error('No buy price');
+      price = d.Data.Data[d.Data.Data.length-1].close;
+    }
+    state.buy[key] = { usd:price, ts }; return state.buy[key];
+  }
+
+  async function loadFX(){
+    if (state.fx) return;
+    for (const url of [`https://api.frankfurter.dev/v1/2017-08-01..?base=USD&symbols=CAD`,
+                       `https://api.frankfurter.app/2017-08-01..?from=USD&to=CAD`]) {
+      try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(r.status);
+        const d = await r.json();
+        const dates = Object.keys(d.rates).sort();
+        state.fx = { dates, rates: dates.map(k => d.rates[k].CAD) };
+        state.fxNote = `USD→CAD from ECB reference rates (Frankfurter), latest ${dates[dates.length-1]} = ${state.fx.rates[dates.length-1].toFixed(4)}.`;
+        return;
+      } catch (e) { /* try next */ }
+    }
+    state.fx = { dates:['1970-01-01'], rates:[1.37] };
+    state.fxNote = 'USD→CAD history unavailable - using a flat 1.37 for all dates.';
+  }
+  // USD -> cur multiplier on a given day. USDT counts 1:1, AED is pegged.
+  function rateFor(cur, ts){
+    if (cur === 'USDT') return 1;
+    if (cur === 'AED') return AED_PEG;
+    const day = new Date(ts).toISOString().slice(0,10);
+    const { dates, rates } = state.fx;
+    let lo = 0, hi = dates.length-1, ans = 0;
+    while (lo <= hi) { const m = (lo+hi)>>1; if (dates[m] <= day) { ans = m; lo = m+1; } else hi = m-1; }
+    return rates[ans];
+  }
+
+  async function load(){
+    const key = state.period, p = PERIODS[key];
+    setStatus('load', `Fetching ${key} candles…`);
+    [...perEl.children].forEach(b => b.disabled = true);
+    try {
+      await loadFX();
+      if (!state.cache[key]) {
+        const res = await Promise.all(COINS.map(c => fetchKlines(c.pair, p)));
+        state.cache[key] = { src: res[0].src, series: res.map(r => r.pts) };
+      }
+      await Promise.all(state.entries.map(e => fetchPriceAt(COINS[BY_SYM[e.sym]].pair, e.date)));
+      renderEntries();
+      render();
+    } catch (e) {
+      setStatus('err', 'Could not reach any price API. Check your connection and reload.');
+    } finally {
+      [...perEl.children].forEach(b => b.disabled = false);
+    }
+  }
+
+  /* ---------- compute ----------
+     All positions are held in USD internally. An entry typed as C$1,000 becomes
+     amtUSD = 1000 / rate(CAD, buy date); its value at time t is
+     amtUSD x priceUSD(t) / buyPriceUSD, converted to whatever currency is asked
+     for at that day's FX. "Invested" in a currency converts the original spend
+     at the BUY date's FX - the money actually put in, not a moving target.   */
+  function build(){
+    const c = state.cache[state.period]; if (!c) return null;
+    const master = c.series[0].map(x => x.t);           // BTC timestamps drive the x-axis
+    const aligned = c.series.map(pts => {
+      const m = new Map(pts.map(x => [x.t, x.p])); let last = pts[0].p;
+      return master.map(t => { if (m.has(t)) last = m.get(t); return last; });
+    });
+    const disp = state.currency;
+    const dispRates = master.map(t => rateFor(disp, t));
+    const prices = aligned.map(s => s.map((v,i) => v*dispRates[i]));   // display-currency prices
+
+    const entries = state.entries.map(e => {
+      const ci = BY_SYM[e.sym];
+      const b = state.buy[COINS[ci].pair + '|' + e.date];
+      if (!b) return null;
+      const amtUSD = e.amt / rateFor(e.cur, b.ts);
+      const investedIn = Object.fromEntries(CURS.map(k => [k, amtUSD * rateFor(k, b.ts)]));
+      return { ...e, ci, ts: b.ts, buyUSD: b.usd, amtUSD, investedIn };
+    }).filter(Boolean);
+
+    const valuesUSD = entries.map(e => master.map((t,i) => t >= e.ts ? e.amtUSD * aligned[e.ci][i] / e.buyUSD : 0));
+    const values = valuesUSD.map(s => s.map((v,i) => v * dispRates[i]));
+    const investedLine = master.map(t => entries.reduce((a,e) => a + (t >= e.ts ? e.investedIn[disp] : 0), 0));
+    const total = master.map((_,i) => values.reduce((a,s) => a + s[i], 0));
+    const totalInv = entries.reduce((a,e) => a + e.investedIn[disp], 0);
+    const entryNow = entries.map((_,ei) => values[ei][master.length-1]);
+    const invByCoin = COINS.map((_,ci) => entries.reduce((a,e) => a + (e.ci===ci ? e.investedIn[disp] : 0), 0));
+    const nowByCoin = COINS.map((_,ci) => entries.reduce((a,e,ei) => a + (e.ci===ci ? entryNow[ei] : 0), 0));
+
+    // grand totals in every currency, at the latest candle's FX
+    const lastTs = master[master.length-1];
+    const nowUSD = valuesUSD.reduce((a,s) => a + s[s.length-1], 0);
+    const totalsByCur = CURS.map(k => {
+      const inv = entries.reduce((a,e) => a + e.investedIn[k], 0);
+      const now = nowUSD * rateFor(k, lastTs);
+      return { cur:k, inv, now, pl: now - inv, plPct: inv ? (now-inv)/inv*100 : 0 };
+    });
+    return { master, prices, entries, totalInv, values, investedLine, total, entryNow,
+             invByCoin, nowByCoin, totalsByCur, src:c.src };
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    const d = build(); if (!d) return;
+    const cur = state.currency, p = PERIODS[state.period];
+    const labels = d.master.map(t => fmtDate(t, p.intraday));
+    $('p1Title').textContent = state.period; $('p2Title').textContent = state.period;
+
+    // chart 1 - prices
+    const ds1 = COINS.map((c,i) => ({
+      label:c.sym, borderColor:c.color, backgroundColor:c.color, borderWidth:1.6, pointRadius:0, pointHoverRadius:4, tension:.15,
+      data: d.prices[i].map(v => state.mode==='pct' ? (v/d.prices[i][0]-1)*100 : v),
+      _price: d.prices[i], _start: d.prices[i][0],
+    }));
+    const y1 = state.mode==='pct'
+      ? { type:'linear', ticks:{ callback:v => (v>0?'+':'')+v+'%' }, grid:gridOpt() }
+      : { type:'logarithmic', ticks:{ callback:v => fmtMoney(v, v<10?2:0) }, grid:gridOpt() };
+    const tip1 = { callbacks:{ label: ctx => {
+      const ds = ctx.dataset, pr = ds._price[ctx.dataIndex], ch = (pr/ds._start-1)*100;
+      return ` ${ds.label}  ${CUR_FMT[cur].pre}${fmtMoney(pr, pr<10?4:2)}  (${ch>=0?'+':''}${ch.toFixed(2)}%)`;
+    }}};
+    chart1 = draw(chart1, 'c1', labels, ds1, y1, tip1, true);
+
+    // chart 2 - portfolio value from the entries
+    const has = d.totalInv > 0;
+    $('e2').hidden = has;
+    const ds2 = [
+      { label:'Portfolio', borderColor:getCSS('--cyan'), backgroundColor:'rgba(55,229,216,.10)', fill:true, borderWidth:2, pointRadius:0, pointHoverRadius:4, tension:.15, data:d.total },
+      { label:'Invested', borderColor:getCSS('--dim'), borderDash:[6,5], borderWidth:1, pointRadius:0, pointHoverRadius:0, stepped:true, data:d.investedLine },
+    ];
+    const tip2 = { callbacks:{ label: ctx => {
+      const inv = d.investedLine[ctx.dataIndex];
+      if (ctx.datasetIndex===1) return ` Invested  ${CUR_FMT[cur].pre}${fmtMoney(inv,0)}`;
+      const v = ctx.parsed.y, pl = v - inv;
+      return ` Value  ${CUR_FMT[cur].pre}${fmtMoney(v,0)}   P/L ${pl>=0?'+':'−'}${CUR_FMT[cur].pre}${fmtMoney(Math.abs(pl),0)}`;
+    }}};
+    chart2 = draw(chart2, 'c2', labels, ds2, { type:'linear', ticks:{ callback:v => fmtMoney(v,0) }, grid:gridOpt() }, tip2, false);
+
+    // readouts (display currency)
+    const last = d.total[d.total.length-1], pl = last - d.totalInv, plPct = d.totalInv ? pl/d.totalInv*100 : 0;
+    $('rInv').textContent = CUR_FMT[cur].pre + fmtMoney(d.totalInv,0);
+    const buyDates = [...new Set(d.entries.map(e => e.date))].sort();
+    $('rInvS').textContent = !has ? 'across all entries'
+      : `${d.entries.length} entr${d.entries.length===1?'y':'ies'} · ` +
+        (buyDates.length===1 ? `bought ${buyDates[0]}` : `${buyDates[0]} → ${buyDates[buyDates.length-1]}`);
+    $('rNow').textContent = CUR_FMT[cur].pre + fmtMoney(last,0);
+    $('rNowS').textContent = `last candle ${fmtDate(d.master[d.master.length-1], true)}`;
+    const plEl = $('rPL'); plEl.textContent = (pl>=0?'+':'−') + CUR_FMT[cur].pre + fmtMoney(Math.abs(pl),0);
+    plEl.className = 'v ' + (!has ? '' : pl>=0 ? 'gain' : 'loss');
+    $('rPLS').textContent = has ? `${plPct>=0?'+':''}${plPct.toFixed(2)}% on the money put in` : 'add an entry to compare';
+
+    // totals in every currency
+    $('curtotals').innerHTML = d.totalsByCur.map(t => `
+      <div class="curtotal">
+        <div class="cc">${t.cur}</div>
+        <div class="own ${!has?'':t.pl>=0?'gain':'loss'}">${CUR_FMT[t.cur].pre}${fmtMoney(t.now,0)}</div>
+        <div class="rows">
+          <div><span>put in</span><b>${CUR_FMT[t.cur].pre}${fmtMoney(t.inv,0)}</b></div>
+          <div><span>profit / loss</span><b class="${!has?'':t.pl>=0?'gain':'loss'}">${t.pl>=0?'+':'−'}${CUR_FMT[t.cur].pre}${fmtMoney(Math.abs(t.pl),0)} (${t.plPct>=0?'+':''}${t.plPct.toFixed(1)}%)</b></div>
+        </div>
+      </div>`).join('');
+
+    // allocation (aggregated per coin)
+    renderBar('barInv', d.invByCoin, d.totalInv); renderBar('barNow', d.nowByCoin, last);
+    $('allocInvTotal').textContent = has ? CUR_FMT[cur].pre + fmtMoney(d.totalInv,0) : '';
+    $('allocNowTotal').textContent = has ? CUR_FMT[cur].pre + fmtMoney(last,0) : '';
+    $('legend').innerHTML = COINS.map((c,i) => `<div style="--c:${c.color}"><b>${c.sym}</b><span>${pct(d.invByCoin[i],d.totalInv)} → ${pct(d.nowByCoin[i],last)}</span></div>`).join('');
+
+    // table - one row per entry, in the display currency
+    $('tbody').innerHTML = d.entries.map((e,ei) => {
+      const s = d.prices[e.ci], p1 = s[s.length-1];
+      const buyDisp = e.buyUSD * rateFor(cur, e.ts);
+      const ch = e.investedIn[cur] ? (d.entryNow[ei]/e.investedIn[cur]-1)*100 : 0;
+      const c = COINS[e.ci];
+      return `<tr><td style="color:${c.color}">${e.sym}</td><td>${e.date}</td><td>${CUR_FMT[cur].pre}${fmtMoney(e.investedIn[cur],0)}</td>
+        <td>${CUR_FMT[cur].pre}${fmtMoney(buyDisp, buyDisp<10?4:2)}</td><td>${CUR_FMT[cur].pre}${fmtMoney(p1, p1<10?4:2)}</td>
+        <td>${CUR_FMT[cur].pre}${fmtMoney(d.entryNow[ei],0)}</td><td class="${ch>=0?'gain':'loss'}">${ch>=0?'+':''}${ch.toFixed(2)}%</td><td>${pct(d.entryNow[ei],last)}</td></tr>`;
+    }).join('') + (d.entries.length ?
+      `<tr class="total"><td>TOTAL</td><td></td><td>${CUR_FMT[cur].pre}${fmtMoney(d.totalInv,0)}</td><td></td><td></td>
+        <td>${CUR_FMT[cur].pre}${fmtMoney(last,0)}</td><td class="${pl>=0?'gain':'loss'}">${plPct>=0?'+':''}${plPct.toFixed(2)}%</td><td></td></tr>` : '');
+
+    $('note').textContent = `Prices from ${d.src} (USDT pairs, candle close). ` +
+      `AED at the fixed 3.6725 peg; USDT counted 1:1 with USD. ${state.fxNote} ` +
+      `Each entry's buy price is the daily close on its purchase date, and its value counts from that date - the portfolio line steps up as entries come in. ` +
+      `"Put in" converts what you spent at the buy date's FX. The period buttons only change the chart window.`;
+    setStatus('ok', `${d.src} · ${cur} · ${d.master.length} points · updated ${fmtDate(Date.now(), true)}`);
+  }
+
+  function draw(inst, id, labels, datasets, yScale, tooltip, legend){
+    const opts = {
+      responsive:true, maintainAspectRatio:false, animation:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ display:legend, labels:{ color:getCSS('--text'), boxWidth:10, boxHeight:10, font:{ family:getCSS('--font'), size:13, weight:'600' } } },
+        tooltip:{ ...tooltip, backgroundColor:'rgba(4,9,14,.94)', borderColor:getCSS('--cyan'), borderWidth:1, titleColor:getCSS('--cyan'), bodyColor:getCSS('--text'),
+                  titleFont:{ family:getCSS('--font'), weight:'700' }, bodyFont:{ family:getCSS('--font'), size:13 }, padding:10, displayColors:true },
+      },
+      scales:{
+        x:{ ticks:{ color:getCSS('--dim'), maxTicksLimit:8, maxRotation:0, font:{ family:getCSS('--font') } }, grid:gridOpt() },
+        y:{ ...yScale, ticks:{ ...yScale.ticks, color:getCSS('--dim'), font:{ family:getCSS('--font') } } },
+      },
+    };
+    if (inst) { inst.data.labels = labels; inst.data.datasets = datasets; inst.options = opts; inst.update(); return inst; }
+    return new Chart($(id), { type:'line', data:{ labels, datasets }, options:opts });
+  }
+  function gridOpt(){ return { color:'rgba(55,229,216,.08)', tickLength:4 }; }
+
+  function renderBar(id, vals, total){
+    const el = $(id);
+    if (!total) { el.innerHTML = `<div class="seg" style="width:100%;--c:var(--line);color:var(--dim);font-weight:600">no entries yet</div>`; return; }
+    el.innerHTML = COINS.map((c,i) => {
+      const w = vals[i]/total*100;
+      return `<div class="seg" style="width:${w}%;--c:${c.color}" title="${c.sym} ${w.toFixed(1)}%">${w>=9 ? c.sym+' '+w.toFixed(0)+'%' : ''}</div>`;
+    }).join('');
+  }
+
+  /* ---------- helpers ---------- */
+  function pct(v,t){ return t ? (v/t*100).toFixed(1)+'%' : '—'; }
+  function fmtMoney(v, dec){ return Number(v).toLocaleString('en-CA', { minimumFractionDigits:dec, maximumFractionDigits:dec }); }
+  function fmtDate(ts, withTime){
+    const d = new Date(ts), o = { month:'short', day:'numeric' };
+    if (withTime) { o.hour='2-digit'; o.minute='2-digit'; } else o.year='numeric';
+    return d.toLocaleString('en-CA', o).replace(',', '');
+  }
+  function setStatus(kind, text){ $('dot').className = 'dot ' + (kind==='ok'?'ok':kind==='err'?'err':''); $('statusText').textContent = text; }
+
+  // Nothing loads until the vault is opened - the lock screen owns boot.
+  pk1.focus();
+})();
+</script>
+</body>
+</html>
