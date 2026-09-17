@@ -4,6 +4,12 @@ A single-page, static backtest for **BTC, ETH, XRP, SOL, PAXG, XAUT, PANW** (Pal
 purchases you actually made - coin, what you spent, and the date - and the app looks
 up that day's closing price, then tracks what each entry is worth now and over time.
 
+## Screenshots
+
+A first visit in a private browsing window: no vault exists yet, so the page asks for a passkey before anything can be entered.
+
+<p><img src="screenshots/desktop.png" width="640" alt="Desktop: the passkey set-up dialog over the empty dashboard"> <img src="screenshots/phone.png" width="213" alt="Phone: the same first-run screen at phone width"></p>
+
 ## What it does
 
 - **Buy entries.** Each entry = coin + amount + purchase date, typed in the currency
