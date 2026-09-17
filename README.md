@@ -6,9 +6,19 @@ up that day's closing price, then tracks what each entry is worth now and over t
 
 ## Screenshots
 
-A first visit in a private browsing window: no vault exists yet, so the page asks for a passkey before anything can be entered.
+Captured in a private browsing window with a throwaway vault and made-up purchases — eight small CAD entries spread over 2024–2025. The vault was deleted afterwards; nothing in these images is a real holding. The prices are the live market data the page fetches.
 
-<p><img src="screenshots/desktop.png" width="640" alt="Desktop: the passkey set-up dialog over the empty dashboard"> <img src="screenshots/phone.png" width="213" alt="Phone: the same first-run screen at phone width"></p>
+The dashboard: totals in every currency, price history, the portfolio value curve, dollar-vs-gold and DXY references, allocation and the per-entry breakdown.
+
+<img src="screenshots/dashboard.png" alt="Dashboard with eight dummy purchases: totals, charts, allocation and breakdown">
+
+The Entries tab, and the dashboard on a phone:
+
+<p><img src="screenshots/entries.png" width="640" alt="Entries tab: the add-a-purchase form and the list of entries"> <img src="screenshots/dashboard-phone.png" width="200" alt="Dashboard on a phone"></p>
+
+Entries on a phone, and a first visit — no vault exists yet, so the page asks for a passkey before anything can be entered:
+
+<p><img src="screenshots/entries-phone.png" width="187" alt="Entries tab on a phone"> <img src="screenshots/first-visit.png" width="640" alt="First visit: the passkey set-up dialog over the empty dashboard"></p>
 
 ## What it does
 
