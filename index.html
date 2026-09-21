@@ -38,7 +38,7 @@
   h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.14em;color:var(--cyan);text-shadow:0 0 14px rgba(55,229,216,.45)}
   h1 small{display:block;font-size:12px;font-weight:600;letter-spacing:.22em;color:var(--dim);text-shadow:none;margin-top:2px}
   .hud-right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
-  .toprow{display:flex;gap:8px;align-items:stretch}
+  .toprow{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
   .lockhead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
   @media (max-width:640px){
     .wrap{padding:12px 10px 32px}
@@ -223,9 +223,9 @@
   .note{font-size:12px;color:var(--dim);margin-top:10px;line-height:1.5}
 
   /* lock screen */
-  .lockscrim{position:fixed;inset:0;z-index:60;background:rgba(4,9,14,.94);display:grid;place-items:center;padding:20px}
+  .lockscrim{position:fixed;inset:0;z-index:60;background:rgba(4,9,14,.94);display:grid;place-items:center;overflow:auto;padding:16px}
   .lockscrim[hidden]{display:none}
-  .lockcard{width:min(420px,100%)}
+  .lockcard{width:min(420px,100%);max-height:calc(100% - 32px);overflow:auto}
   .lockcard .hint{margin-top:12px}
   .lockbtn{
     background:var(--bg);border:1px solid var(--line);color:var(--dim);
@@ -234,6 +234,9 @@
   .lockbtn:hover{color:var(--cyan);border-color:var(--cyan)}
   .lockrestore{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
   .lockrestore span{font-size:12px;color:var(--dim);letter-spacing:.04em;line-height:1.5}
+  .stay{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px;color:var(--dim);letter-spacing:.06em;cursor:pointer;user-select:none}
+  .stay input{width:16px;height:16px;margin:0;accent-color:var(--cyan);cursor:pointer;flex:0 0 auto}
+  .lockactions{margin-top:14px;display:flex;justify-content:flex-end}
 
   @media (prefers-reduced-motion:reduce){.seg{transition:none}}
 </style>
@@ -251,13 +254,37 @@
       <label class="field" for="pk2">Confirm passkey</label>
       <input type="password" id="pk2" autocomplete="new-password">
     </div>
+    <label class="stay"><input type="checkbox" id="stay"> <span>Stay unlocked on this device</span></label>
     <button class="addbtn" id="unlockBtn">UNLOCK</button>
     <div class="formerr" id="lockErr"></div>
     <p class="hint" id="lockHint">Your entries are encrypted with this passkey (PBKDF2 600k &rarr; AES-256-GCM) and stored only in this
-      browser. The passkey itself is never stored anywhere - a wrong one simply fails to decrypt. There is no recovery.</p>
+      browser. The passkey itself is never stored anywhere - a wrong one simply fails to decrypt. There is no recovery.
+      <b>Stay unlocked</b> keeps the derived key in this browser (never the passkey) so the page opens without asking; <b>LOCK</b> forgets it.</p>
     <div class="lockrestore">
       <span>New device? Your data lives in the browser it was made on, not on a server.</span>
       <button class="lockbtn" id="restoreBtn" type="button">Restore from a backup file&hellip;</button>
+    </div>
+  </div>
+</div>
+
+<div class="lockscrim" id="pkmodal" hidden>
+  <div class="panel lockcard" role="dialog" aria-modal="true" aria-labelledby="pkTitle">
+    <div class="lockhead">
+      <svg class="applogo" viewBox="0 0 48 48" aria-hidden="true"><use href="#kstone"/></svg>
+      <h2 id="pkTitle" style="margin:0">CHANGE PASSKEY</h2>
+    </div>
+    <label class="field" for="pkCur">Current passkey</label>
+    <input type="password" id="pkCur" autocomplete="current-password">
+    <label class="field" for="pkNew">New passkey</label>
+    <input type="password" id="pkNew" autocomplete="new-password">
+    <label class="field" for="pkNew2">Confirm new passkey</label>
+    <input type="password" id="pkNew2" autocomplete="new-password">
+    <button class="addbtn" id="pkSaveBtn">CHANGE PASSKEY</button>
+    <div class="formerr" id="pkErr"></div>
+    <p class="hint">Your entries are re-encrypted with a fresh key and salt derived from the new passkey. Backup files made
+      before this still open with the old passkey, so download a new backup afterwards.</p>
+    <div class="lockactions">
+      <button class="lockbtn" id="pkCancelBtn" type="button">Cancel</button>
     </div>
   </div>
 </div>
@@ -289,6 +316,7 @@
           <button data-cur="USDT">USDT</button>
         </div>
         <button class="lockbtn" id="backupBtn" title="Download an encrypted backup to move to another device">BACKUP</button>
+        <button class="lockbtn" id="pkBtn" title="Change the passkey that encrypts your entries">PASSKEY</button>
         <button class="lockbtn" id="lockBtn" title="Lock the app">LOCK</button>
       </div>
       <div class="status"><span class="dot" id="dot"></span><span id="statusText">Booting&hellip;</span></div>
@@ -461,7 +489,9 @@
           <li><b>Nothing leaves your browser.</b> There is no account, no server, and no analytics. The only network calls are read-only price and exchange-rate lookups, which carry none of your data.</li>
           <li><b>The code is public, your data isn't.</b> Even someone reading the source or the stored file sees only ciphertext &mdash; useless without your passkey.</li>
           <li><b>Moving it is on your terms.</b> <b>Backup</b> (top-right) downloads the encrypted file; <b>Restore from a backup file</b> on the lock screen loads it on another device, where the same passkey unlocks it. <b>Lock</b> wipes the key from memory until you re-enter it.</li>
-          <li><b>Shared browser?</b> Anyone using this browser profile can reach the lock screen, but not your data without the passkey. Clearing the browser's site data erases the vault here &mdash; keep a backup.</li>
+          <li><b>Changing the passkey.</b> <b>Passkey</b> (top-right) asks for the current one, then re-encrypts everything under the new one with a fresh salt. Backups made earlier still open with the passkey they were made with, so take a new backup afterwards.</li>
+          <li><b>Stay unlocked.</b> Tick it on the lock screen and this browser keeps the derived key &mdash; never the passkey &mdash; in IndexedDB as a non-extractable key, so the page opens without asking. Handy on a phone, where the browser reloads the tab often. Anyone with this browser profile can then open your data; <b>Lock</b> forgets the key again.</li>
+          <li><b>Shared browser?</b> Anyone using this browser profile can reach the lock screen, but not your data without the passkey (unless <b>Stay unlocked</b> is on). Clearing the browser's site data erases the vault here &mdash; keep a backup.</li>
         </ul>
       </div>
 
@@ -535,12 +565,19 @@
     return crypto.subtle.deriveKey({ name:'PBKDF2', salt, iterations:ITERS, hash:'SHA-256' },
       base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
   }
+  async function sealVault(key, salt){             // live state -> one encrypted blob (fresh IV every time)
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key,
+      te.encode(JSON.stringify({ entries: state.entries, currency: state.currency })));
+    return JSON.stringify({ v:1, iters:ITERS, salt:b64(salt), iv:b64(iv), ct:b64(ct) });
+  }
   async function saveVault(){
     if (!vaultKey) return;
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const ct = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, vaultKey,
-      te.encode(JSON.stringify({ entries: state.entries, currency: state.currency })));
-    localStorage.setItem(VAULT, JSON.stringify({ v:1, iters:ITERS, salt:b64(vaultSalt), iv:b64(iv), ct:b64(ct) }));
+    localStorage.setItem(VAULT, await sealVault(vaultKey, vaultSalt));
+  }
+  async function decryptVault(key, v){             // throws on the wrong key (the GCM tag fails)
+    const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: unb64(v.iv) }, key, unb64(v.ct));
+    return JSON.parse(td.decode(pt));
   }
   async function openVault(pass){
     const raw = localStorage.getItem(VAULT);
@@ -551,20 +588,61 @@
       return { entries: [], currency: state.currency };
     }
     const v = JSON.parse(raw);
-    vaultSalt = unb64(v.salt);
-    vaultKey = await deriveKey(pass, vaultSalt);
-    const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: unb64(v.iv) }, vaultKey, unb64(v.ct));
-    return JSON.parse(td.decode(pt));              // throws before this line on a wrong passkey
+    const salt = unb64(v.salt), key = await deriveKey(pass, salt);
+    const data = await decryptVault(key, v);       // throws here on a wrong passkey, leaving the globals alone
+    vaultSalt = salt; vaultKey = key;
+    return data;
   }
   function saveEntries(){ saveVault().catch(() => setStatus('err', 'Could not save - storage blocked?')); }
+
+  /* ---------- "stay unlocked": the derived key, remembered on this device ----------
+     Opt-in on the lock screen. The AES key (never the passkey) is kept as a
+     NON-EXTRACTABLE CryptoKey in IndexedDB: scripts can use it to unlock but
+     cannot read its bytes out. Anyone with this browser profile can open the
+     vault while it is remembered - LOCK forgets it, and a key that no longer
+     opens the stored blob (restored vault, passkey changed) is dropped.      */
+  const KDB = 'phud-keys', KSTORE = 'keys', KID = 'remembered';
+  function keyStore(mode, op){
+    return new Promise((resolve, reject) => {
+      let req;
+      try { req = indexedDB.open(KDB, 1); } catch (e) { return reject(e); }
+      req.onupgradeneeded = () => req.result.createObjectStore(KSTORE);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        const db = req.result, tx = db.transaction(KSTORE, mode), r = op(tx.objectStore(KSTORE));
+        tx.oncomplete = () => { db.close(); resolve(r ? r.result : undefined); };
+        tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
+      };
+    });
+  }
+  const rememberKey = key => keyStore('readwrite', s => s.put(key, KID)).catch(() => {});
+  const recallKey   = ()  => keyStore('readonly',  s => s.get(KID)).catch(() => null);
+  const forgetKey   = ()  => keyStore('readwrite', s => s.delete(KID)).catch(() => {});
 
   /* ---------- lock screen ---------- */
   const lockEl = $('lock'), pk1 = $('pk1'), pk2 = $('pk2'), lockErr = $('lockErr'), unlockBtn = $('unlockBtn');
   const firstRun = !localStorage.getItem(VAULT);
+  // when embedded (e.g. inside Batcomputer) remember the key for the browser-tab
+  // session so reloads don't re-prompt; standalone stays strict (never stored).
+  const EMBEDDED = (function(){ try{ return window.self !== window.top; }catch(e){ return true; } })();
+  const SK = 'phud-sk';
   if (firstRun) {
     $('lockTitle').textContent = 'SET A PASSKEY';
     $('pk2wrap').hidden = false;
     unlockBtn.textContent = 'CREATE VAULT';
+  }
+  function enter(data){                            // the vault is open: take its state and start the app
+    state.entries = (data.entries || []).filter(e => BY_SYM[e.sym] != null && e.amt > 0 &&
+      typeof e.date === 'string' && e.date >= LISTED[e.sym] && e.date <= today)
+      .map(e => ({ ...e, cur: CURS.includes(e.cur) ? e.cur : 'CAD' }));
+    if (CURS.includes(data.currency)) state.currency = data.currency;
+    pk1.value = ''; pk2.value = '';
+    lockEl.hidden = true;
+    [...$('curctl').children].forEach(b => b.classList.toggle('on', b.dataset.cur === state.currency));
+    $('curLabel').textContent = state.currency;
+    if (firstRun) showTab('howto');   // a brand-new vault lands on the guide
+    renderEntries();
+    load();
   }
   async function unlock(){
     lockErr.textContent = '';
@@ -574,26 +652,82 @@
     unlockBtn.disabled = true; unlockBtn.textContent = 'DERIVING KEY…';
     try {
       const data = await openVault(pass);
-      state.entries = (data.entries || []).filter(e => BY_SYM[e.sym] != null && e.amt > 0 &&
-        typeof e.date === 'string' && e.date >= LISTED[e.sym] && e.date <= today)
-        .map(e => ({ ...e, cur: CURS.includes(e.cur) ? e.cur : 'CAD' }));
-      if (CURS.includes(data.currency)) state.currency = data.currency;
-      pk1.value = ''; pk2.value = '';
-      lockEl.hidden = true;
-      [...$('curctl').children].forEach(b => b.classList.toggle('on', b.dataset.cur === state.currency));
-      $('curLabel').textContent = state.currency;
-      if (firstRun) showTab('howto');   // a brand-new vault lands on the guide
-      renderEntries();
-      load();
+      if (EMBEDDED) { try { sessionStorage.setItem(SK, pass); } catch (e) {} }
+      if ($('stay').checked) await rememberKey(vaultKey);
+      enter(data);
     } catch (e) {
       lockErr.textContent = 'That passkey does not decrypt the saved data.';
     } finally {
       unlockBtn.disabled = false; unlockBtn.textContent = firstRun ? 'CREATE VAULT' : 'UNLOCK';
     }
   }
+  // "stay unlocked": open straight away with the key remembered on this device
+  async function tryRemembered(){
+    if (firstRun) return false;
+    const key = await recallKey();
+    if (!key) return false;
+    try {
+      const v = JSON.parse(localStorage.getItem(VAULT));
+      const data = await decryptVault(key, v);
+      vaultKey = key; vaultSalt = unb64(v.salt);
+      enter(data);
+      return true;
+    } catch (e) { forgetKey(); return false; }    // stale key (restored vault, passkey changed) - ask again
+  }
   unlockBtn.addEventListener('click', unlock);
   [pk1, pk2].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); }));
-  $('lockBtn').addEventListener('click', () => { vaultKey = null; location.reload(); });
+  $('lockBtn').addEventListener('click', async () => {
+    vaultKey = null; try { sessionStorage.removeItem(SK); } catch (e) {}
+    await forgetKey();                             // LOCK also ends "stay unlocked" on this device
+    location.reload();
+  });
+  tryRemembered().then(opened => {
+    if (opened) return;
+    // auto-unlock from the remembered session key when embedded
+    if (EMBEDDED && !firstRun) { try { const sk = sessionStorage.getItem(SK); if (sk) { pk1.value = sk; unlock(); return; } } catch (e) {} }
+    pk1.focus();
+  });
+
+  /* ---------- change passkey ----------
+     The current passkey is proved by decrypting the stored blob with it (the key
+     in memory is not trusted for this), then the live state is re-sealed under a
+     key derived from the new passkey with a fresh salt. The old key stays until
+     the new blob is written, so a failed write changes nothing.              */
+  const pkModal = $('pkmodal'), pkCur = $('pkCur'), pkNew = $('pkNew'), pkNew2 = $('pkNew2'), pkErr = $('pkErr'), pkSaveBtn = $('pkSaveBtn');
+  function openPkModal(){ pkErr.textContent = ''; pkModal.hidden = false; pkCur.focus(); }
+  function closePkModal(){ pkModal.hidden = true; pkCur.value = pkNew.value = pkNew2.value = ''; pkErr.textContent = ''; }
+  async function changePasskey(){
+    pkErr.textContent = '';
+    const cur = pkCur.value, next = pkNew.value;
+    if (!cur) { pkErr.textContent = 'Enter the current passkey.'; return; }
+    if (!next) { pkErr.textContent = 'Enter a new passkey.'; return; }
+    if (next !== pkNew2.value) { pkErr.textContent = 'The two new passkeys do not match.'; return; }
+    if (next === cur) { pkErr.textContent = 'The new passkey is the same as the current one.'; return; }
+    pkSaveBtn.disabled = true; pkSaveBtn.textContent = 'RE-ENCRYPTING…';
+    try {
+      const v = JSON.parse(localStorage.getItem(VAULT));
+      try { await decryptVault(await deriveKey(cur, unb64(v.salt)), v); }
+      catch (e) { pkErr.textContent = 'That is not the current passkey.'; return; }
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const key = await deriveKey(next, salt);
+      localStorage.setItem(VAULT, await sealVault(key, salt));
+      vaultKey = key; vaultSalt = salt;
+      if (EMBEDDED) { try { if (sessionStorage.getItem(SK) != null) sessionStorage.setItem(SK, next); } catch (e) {} }
+      if (await recallKey()) await rememberKey(key);   // keep "stay unlocked" working with the new key
+      closePkModal();
+      setStatus('ok', 'Passkey changed - download a fresh backup.');
+    } catch (e) {
+      pkErr.textContent = 'Could not change the passkey - storage blocked?';
+    } finally {
+      pkSaveBtn.disabled = false; pkSaveBtn.textContent = 'CHANGE PASSKEY';
+    }
+  }
+  $('pkBtn').addEventListener('click', openPkModal);
+  $('pkCancelBtn').addEventListener('click', closePkModal);
+  pkSaveBtn.addEventListener('click', changePasskey);
+  [pkCur, pkNew, pkNew2].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') changePasskey(); }));
+  pkModal.addEventListener('keydown', e => { if (e.key === 'Escape') closePkModal(); });
+  pkModal.addEventListener('click', e => { if (e.target === pkModal) closePkModal(); });
 
   /* ---------- backup / restore (cross-device without a server) ----------
      The backup file IS the encrypted vault blob - moving it to another device
@@ -935,7 +1069,14 @@
       return { ...e, ci, ts: b.ts, buyUSD: b.usd, amtUSD, investedIn };
     }).filter(Boolean);
 
-    const valuesUSD = entries.map(e => master.map((t,i) => (t >= e.ts && aligned[e.ci][i] != null) ? e.amtUSD * aligned[e.ci][i] / e.buyUSD : 0));
+    const lastT = master[master.length - 1];
+    const valuesUSD = entries.map(e => {
+      // a buy timestamp newer than the latest candle (an intraday/today buy, or a
+      // not-yet-refreshed history) is valued from that latest candle, so a holding
+      // you actually own still shows a current value instead of dropping to zero.
+      const ets = Math.min(e.ts, lastT);
+      return master.map((t,i) => (t >= ets && aligned[e.ci][i] != null) ? e.amtUSD * aligned[e.ci][i] / e.buyUSD : 0);
+    });
     const values = valuesUSD.map(s => s.map((v,i) => v * dispRates[i]));
     const investedLine = master.map(t => entries.reduce((a,e) => a + (t >= e.ts ? e.investedIn[disp] : 0), 0));
     const total = master.map((_,i) => values.reduce((a,s) => a + s[i], 0));
@@ -1128,8 +1269,7 @@
   }
   function setStatus(kind, text){ $('dot').className = 'dot ' + (kind==='ok'?'ok':kind==='err'?'err':''); $('statusText').textContent = text; }
 
-  // Nothing loads until the vault is opened - the lock screen owns boot.
-  pk1.focus();
+  // Nothing loads until the vault is opened - the lock screen owns boot (see tryRemembered above).
 })();
 </script>
 </body>

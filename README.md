@@ -33,7 +33,13 @@ Entries on a phone, and a first visit — no vault exists yet, so the page asks 
 - **Encrypted vault.** Everything you save is AES-256-GCM encrypted in your browser's
   localStorage with a key derived from your passkey (PBKDF2-HMAC-SHA256, 600k
   iterations, random salt). The passkey is never stored or transmitted; a wrong
-  passkey simply fails to decrypt. There is no recovery if you forget it.
+  passkey simply fails to decrypt. There is no recovery if you forget it. **Passkey**
+  (top-right) changes it: the vault is re-encrypted under the new passkey with a fresh
+  salt, and older backups keep opening with the passkey they were made with.
+- **Stay unlocked (opt-in).** Tick it on the lock screen and the browser keeps the derived
+  AES key - never the passkey - as a non-extractable key in IndexedDB, so the page opens
+  without asking. Useful on a phone, where the browser reloads the tab constantly. Anyone
+  with that browser profile can then open the data; **Lock** forgets the key.
 
 ## Privacy model
 
