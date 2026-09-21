@@ -227,6 +227,7 @@
   .lockscrim[hidden]{display:none}
   .lockcard{width:min(420px,100%);max-height:calc(100% - 32px);overflow:auto}
   .lockcard .hint{margin-top:12px}
+  html.embedded .lockscrim{place-items:start center;padding-top:48px}   /* inside a host frame the frame is content-tall */
   .lockbtn{
     background:var(--bg);border:1px solid var(--line);color:var(--dim);
     font:700 13px var(--font);letter-spacing:.12em;padding:7px 12px;cursor:pointer;
@@ -1272,5 +1273,32 @@
   // Nothing loads until the vault is opened - the lock screen owns boot (see tryRemembered above).
 })();
 </script>
-</body>
+<script>
+/* Embed bridge: inside a host shell (Batcomputer) size the frame to our REAL content
+   height so the host page scrolls as one (no inner scrollbar, no vertical float), and
+   forward wheel events so scrolling works over the frame. Same protocol as Health
+   Panel, Nine Slots and WebAppGrid. */
+(function(){
+  if (window.top === window.self) return;                 // only when embedded
+  var de=document.documentElement, b=document.body;
+  de.classList.add("embedded");
+  de.style.height="auto"; b.style.minHeight="0"; b.style.height="auto";
+  function report(){
+    var h=0, kids=b.children;
+    for (var i=0;i<kids.length;i++){
+      var el=kids[i], cs=getComputedStyle(el);
+      if (cs.position==="fixed"||cs.position==="absolute") continue;   // lock screen, dialogs, the svg defs
+      var bot=el.offsetTop+el.offsetHeight; if(bot>h) h=bot;
+    }
+    if(!h) h=b.scrollHeight;
+    try{ parent.postMessage({__embed:true,type:"height",height:Math.ceil(h)},"*"); }catch(e){}
+  }
+  window.addEventListener("load",report);
+  document.addEventListener("DOMContentLoaded",report);
+  if (window.ResizeObserver) new ResizeObserver(report).observe(b);
+  setInterval(report,1200);
+  window.addEventListener("wheel",function(e){ try{ parent.postMessage({__embed:true,type:"wheel",dy:e.deltaY,dx:e.deltaX},"*"); }catch(err){} },{passive:true});
+})();
+</script>
+</body
 </html>
