@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>/* mounted under a path (e.g. https://host/app): relative links need the trailing slash */(function(){var p=location.pathname;if(!/\/$|\.[a-z0-9]+$/i.test(p))location.replace(p+"/"+location.search+location.hash);})();</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kryptonite Profile</title>
@@ -239,6 +240,32 @@
   .stay input{width:16px;height:16px;margin:0;accent-color:var(--cyan);cursor:pointer;flex:0 0 auto}
   .lockactions{margin-top:14px;display:flex;justify-content:flex-end}
 
+  /* live market strip under the header: crypto (Binance 24h ticker) + US market ETFs (stockanalysis quotes) */
+  .mkt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+  .mkt .mktlab{
+    font:700 12px var(--font);letter-spacing:.16em;color:var(--cyan);margin-right:4px;
+    background:none;border:0;padding:0;cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:6px;
+  }
+  .mkt .mktlab::after{content:"\25BE";font-size:11px;color:var(--cyan-dim);transition:transform .15s ease}  /* ▾ */
+  .mkt.collapsed .mktlab::after{transform:rotate(-90deg)}
+  .mkt .mktlab:hover{text-shadow:0 0 10px var(--cyan-dim)}
+  .mkt .mktlab:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+  .mkt.collapsed .mtick,.mkt.collapsed .mktnote{display:none}
+  .mkt .mktnote{font-size:12px;color:var(--dim);letter-spacing:.06em;margin-left:auto}
+  .mtick{
+    --c:var(--cyan);display:inline-flex;align-items:baseline;gap:9px;border:1px solid var(--line);background:var(--bg);
+    padding:6px 11px;font-size:15px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums;
+  }
+  .mtick .sym{color:var(--c);font-size:13px;font-weight:700;letter-spacing:.1em}
+  .mtick .sym::before{content:"";display:inline-block;width:8px;height:8px;margin-right:7px;background:var(--c);box-shadow:0 0 8px var(--c)}
+  .mtick .px{color:var(--text)}
+  .mtick .chg{font-size:13px;font-weight:700;color:var(--dim)}
+  .mtick.up .chg{color:var(--gain)}
+  .mtick.down .chg{color:var(--loss)}
+  .mtick.err{border-color:rgba(255,92,122,.5)}
+  .mtick.err .px{color:var(--loss);font-size:12px;letter-spacing:.08em}
+  @media (max-width:640px){ .mtick{font-size:14px;padding:5px 9px} .mkt .mktnote{margin-left:0;width:100%} }
+
   @media (prefers-reduced-motion:reduce){.seg{transition:none}}
 </style>
 </head>
@@ -323,6 +350,11 @@
       <div class="status"><span class="dot" id="dot"></span><span id="statusText">Booting&hellip;</span></div>
     </div>
   </header>
+
+  <div class="mkt" id="mkt" aria-label="Live market prices">
+    <button type="button" class="mktlab" id="mktToggle" aria-controls="mkt" aria-expanded="false" title="Show or hide the market prices">MARKETS</button>
+    <span class="mktnote" id="mktNote">loading quotes&hellip;</span>
+  </div>
 
   <nav class="tabs" id="tabs" role="tablist" aria-label="Views">
     <button data-tab="dash" class="on" role="tab" aria-selected="true">DASHBOARD</button>
@@ -1271,6 +1303,104 @@
   function setStatus(kind, text){ $('dot').className = 'dot ' + (kind==='ok'?'ok':kind==='err'?'err':''); $('statusText').textContent = text; }
 
   // Nothing loads until the vault is opened - the lock screen owns boot (see tryRemembered above).
+})();
+
+/* ---------- live market strip (public prices only, independent of the vault) ----------
+   Crypto from Binance's 24h ticker (data-api.binance.vision, then api.binance.com; CoinGecko as
+   a last resort). US market via the SPY / DIA / QQQ / IWM ETFs from stockanalysis.com's quote
+   endpoint (native CORS, no key - the same source as PANW). Refreshes every minute. */
+(() => {
+  const CRYPTO = [
+    { sym:'BTC', id:'bitcoin',     color:'var(--btc)' },
+    { sym:'ETH', id:'ethereum',    color:'var(--eth)' },
+    { sym:'SOL', id:'solana',      color:'var(--sol)' },
+    { sym:'XRP', id:'ripple',      color:'var(--xrp)' },
+    { sym:'BNB', id:'binancecoin', color:'#F3BA2F' },
+  ];
+  const STOCKS = [
+    { sym:'SPY', label:'S&P 500',    color:'var(--sp500)' },
+    { sym:'DIA', label:'DOW',        color:'#5CC8FF' },
+    { sym:'QQQ', label:'NASDAQ 100', color:'#B48CFF' },
+    { sym:'IWM', label:'RUSSELL 2K', color:'#7EE081' },
+  ];
+  const strip = document.getElementById('mkt'), note = document.getElementById('mktNote'), toggle = document.getElementById('mktToggle');
+  if (!strip || !note) return;
+  let updatedAt = 0;
+
+  // hidden by default; clicking MARKETS shows or hides the prices, and the choice is remembered in this browser
+  const OPEN_KEY = 'phud-mkt-open';
+  function setOpen(open){
+    strip.classList.toggle('collapsed', !open);
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    try { localStorage.setItem(OPEN_KEY, open ? '1' : '0'); } catch (e) {}
+  }
+  let open = false; try { open = localStorage.getItem(OPEN_KEY) === '1'; } catch (e) {}
+  setOpen(open);
+  if (toggle) toggle.addEventListener('click', () => setOpen(strip.classList.contains('collapsed')));
+
+  function fmt(p){
+    if (p == null || isNaN(p)) return '—';
+    const dp = p >= 1000 ? 0 : p >= 10 ? 2 : p >= 1 ? 3 : 4;
+    return Number(p).toLocaleString('en-US', { minimumFractionDigits:dp, maximumFractionDigits:dp });
+  }
+  async function getJSON(url){
+    const r = await fetch(url, { cache:'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+  async function crypto(){
+    const pairs = encodeURIComponent(JSON.stringify(CRYPTO.map(c => c.sym + 'USDT')));
+    for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
+      try {
+        const rows = await getJSON(`${host}/api/v3/ticker/24hr?symbols=${pairs}`);
+        const by = Object.fromEntries(rows.map(r => [r.symbol, r]));
+        return CRYPTO.map(c => { const r = by[c.sym + 'USDT'];
+          return { ...c, price: r ? +r.lastPrice : null, chg: r ? +r.priceChangePercent : null, err: r ? null : 'no data' }; });
+      } catch (e) {}
+    }
+    const d = await getJSON('https://api.coingecko.com/api/v3/simple/price?ids=' + CRYPTO.map(c => c.id).join(',') + '&vs_currencies=usd&include_24hr_change=true');
+    return CRYPTO.map(c => { const r = d[c.id];
+      return { ...c, price: r ? r.usd : null, chg: r ? r.usd_24h_change : null, err: r ? null : 'no data' }; });
+  }
+  async function stock(s){
+    try {
+      const d = (await getJSON(`https://stockanalysis.com/api/quotes/s/${s.sym.toLowerCase()}`)).data;
+      return { ...s, price: d.p, chg: d.cp, state: d.ms, err: null };
+    } catch (e) { return { ...s, price: null, chg: null, err: 'unavailable' }; }
+  }
+  function chip(q, basis){
+    const el = document.createElement('span');
+    const dir = q.err ? 'err' : q.chg > 0.005 ? 'up' : q.chg < -0.005 ? 'down' : 'flat';
+    el.className = 'mtick ' + dir;
+    el.style.setProperty('--c', q.color);
+    const sym = document.createElement('span'); sym.className = 'sym'; sym.textContent = q.label || q.sym; el.appendChild(sym);
+    const px = document.createElement('span'); px.className = 'px'; px.textContent = q.err ? q.err.toUpperCase() : fmt(q.price); el.appendChild(px);
+    if (!q.err && q.chg != null) {
+      const c = document.createElement('span'); c.className = 'chg';
+      c.textContent = (q.chg > 0 ? '▲' : q.chg < 0 ? '▼' : '') + Math.abs(q.chg).toFixed(2) + '%';
+      el.appendChild(c);
+    }
+    el.title = `${q.sym} · USD · ${basis}` + (q.state ? ` · market ${q.state}` : '');
+    return el;
+  }
+  function ago(){ const m = Math.round((Date.now() - updatedAt) / 60000); return m < 1 ? 'just now' : m + ' min ago'; }
+  async function refresh(){
+    const [cr, st] = await Promise.all([
+      crypto().catch(() => CRYPTO.map(c => ({ ...c, price:null, chg:null, err:'unavailable' }))),
+      Promise.all(STOCKS.map(stock)),
+    ]);
+    const frag = document.createDocumentFragment();
+    cr.forEach(q => frag.appendChild(chip(q, '24h change')));
+    st.forEach(q => frag.appendChild(chip(q, 'vs previous close')));
+    strip.querySelectorAll('.mtick').forEach(n => n.remove());
+    strip.insertBefore(frag, note);
+    updatedAt = Date.now();
+    const bad = [...cr, ...st].filter(q => q.err).length;
+    note.textContent = (bad ? bad + ' quote(s) unavailable · ' : '') + 'updated ' + ago();
+  }
+  refresh();
+  setInterval(refresh, 60000);
+  setInterval(() => { if (updatedAt) note.textContent = note.textContent.replace(/updated .*$/, 'updated ' + ago()); }, 30000);
 })();
 </script>
 <script>

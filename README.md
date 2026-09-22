@@ -49,6 +49,12 @@ the ability to decrypt your own local data. Crypto prices come from Binance (Cry
 (split/dividend-adjusted daily closes, native CORS, no key); FX history from Frankfurter
 (ECB reference rates). AED uses the fixed 3.6725 peg and USDT is counted 1:1 with USD.
 
+The **market strip** under the header shows live BTC / ETH / SOL / XRP / BNB from Binance's
+24-hour ticker (CoinGecko fallback) and the US market via the SPY, DIA, QQQ and IWM ETFs from
+stockanalysis.com quotes. Public prices only - it loads regardless of the vault and refreshes
+every minute. It is hidden by default: click the word **MARKETS** to show or hide the prices, and
+the choice is remembered in that browser.
+
 ## Running it
 
 Open `index.html`, or serve the folder statically:
