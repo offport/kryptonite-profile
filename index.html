@@ -233,7 +233,8 @@
     background:var(--bg);border:1px solid var(--line);color:var(--dim);
     font:700 13px var(--font);letter-spacing:.12em;padding:7px 12px;cursor:pointer;
   }
-  .lockbtn:hover{color:var(--cyan);border-color:var(--cyan)}
+  .lockbtn:hover:not(:disabled){color:var(--cyan);border-color:var(--cyan)}
+  .lockbtn:disabled{opacity:.5;cursor:progress}
   .lockrestore{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
   .lockrestore span{font-size:12px;color:var(--dim);letter-spacing:.04em;line-height:1.5}
   .stay{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:13px;color:var(--dim);letter-spacing:.06em;cursor:pointer;user-select:none}
@@ -343,6 +344,7 @@
           <button data-cur="CAD" class="on">CAD</button>
           <button data-cur="USDT">USDT</button>
         </div>
+        <button class="lockbtn" id="refreshBtn" title="Re-fetch live prices, charts and the market strip">REFRESH</button>
         <button class="lockbtn" id="backupBtn" title="Download an encrypted backup to move to another device">BACKUP</button>
         <button class="lockbtn" id="pkBtn" title="Change the passkey that encrypts your entries">PASSKEY</button>
         <button class="lockbtn" id="lockBtn" title="Lock the app">LOCK</button>
@@ -792,6 +794,15 @@
     });
     inp.click();
   }
+  $('refreshBtn').addEventListener('click', async () => {
+    const btn = $('refreshBtn'); if (btn.disabled) return;
+    btn.disabled = true;
+    try {
+      state.cache = {}; state.stock = {}; state.buy = {}; state.fx = null;   // drop cached data so this is a real re-fetch
+      await load();
+      if (window.__refreshMarkets) await window.__refreshMarkets().catch(() => {});
+    } finally { btn.disabled = false; }
+  });
   $('backupBtn').addEventListener('click', exportVault);
   $('restoreBtn').addEventListener('click', () => importVault(() => {
     lockErr.textContent = ''; location.reload();   // reload so the lock screen now asks for the restored vault's passkey
@@ -1398,6 +1409,7 @@
     const bad = [...cr, ...st].filter(q => q.err).length;
     note.textContent = (bad ? bad + ' quote(s) unavailable · ' : '') + 'updated ' + ago();
   }
+  window.__refreshMarkets = refresh;      // let the header REFRESH button force the market strip to re-fetch too
   refresh();
   setInterval(refresh, 60000);
   setInterval(() => { if (updatedAt) note.textContent = note.textContent.replace(/updated .*$/, 'updated ' + ago()); }, 30000);
