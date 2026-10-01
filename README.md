@@ -69,3 +69,7 @@ Hosted at: https://offport.github.io/kryptonite-profile/
 localStorage, never on GitHub). To use it on another device, press **Backup** to download the
 encrypted file, move it over, and choose **Restore from a backup file** on the lock screen — the
 same passkey then unlocks the same data. The backup is ciphertext; it is useless without the passkey.
+
+## LUCKY13 tab
+
+The LUCKY13 tab hosts the lucky13 signal app (its own project, `I:\GitHub\lucky13`, port 8013) in a frame: on the box it points at 127.0.0.1:8013, over Tailscale at the `/lucky13/` path of this origin. The frame loads when the tab is first opened; OPEN FULL opens the app in its own tab.

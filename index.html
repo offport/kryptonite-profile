@@ -75,6 +75,15 @@
   .tabcount:empty{display:none}
   .tabpanel{margin-top:0;border-top:1px solid var(--line);padding-top:16px}
   .tabpanel[hidden]{display:none}
+  .l13panel{padding:12px}
+  .l13panel h2{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .l13open{margin-left:auto;font:700 12px var(--font);letter-spacing:.12em;color:var(--dim);border:1px solid var(--line);padding:5px 10px;text-decoration:none}
+  .l13open:hover{color:var(--cyan);border-color:var(--cyan)}
+  .l13frame{width:100%;height:calc(100vh - 150px);min-height:600px;border:1px solid var(--line);background:var(--bg);display:block}
+  html.embedded .l13frame{height:1100px}
+  .l13note{margin-top:10px;font-size:13px;color:var(--amber);letter-spacing:.04em}
+  .l13note[hidden]{display:none}
+  .l13note code{font-family:ui-monospace,Consolas,monospace;color:var(--text)}
   .stack{min-width:0}
   .stack>.panel{min-width:0}
   .entrygrid{display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start}
@@ -362,6 +371,7 @@
     <button data-tab="dash" class="on" role="tab" aria-selected="true">DASHBOARD</button>
     <button data-tab="entries" role="tab" aria-selected="false">ENTRIES <span class="tabcount" id="tabCount"></span></button>
     <button data-tab="howto" role="tab" aria-selected="false">HOW TO</button>
+    <button data-tab="lucky13" role="tab" aria-selected="false">LUCKY13</button>
   </nav>
 
   <!-- DASHBOARD: totals + graphs, first thing shown -->
@@ -470,6 +480,14 @@
   </section>
 
   <!-- HOW TO: the guide new users land on -->
+  <section class="tabpanel" id="tab-lucky13" role="tabpanel" hidden>
+    <div class="panel l13panel">
+      <h2>LUCKY13 <span class="sub">13-factor signal core &middot; its own app on port 8013, shown here as a module</span>
+        <a class="l13open" id="l13open" href="#" target="_blank" rel="noopener">OPEN FULL &#8599;</a></h2>
+      <iframe id="l13frame" class="l13frame" title="lucky13" referrerpolicy="no-referrer" allow="clipboard-write"></iframe>
+      <div class="l13note" id="l13note" hidden>lucky13 is not answering. Start it with <code>python run.py</code> in I:\GitHub\lucky13 (the "lucky13 (port 8013)" task runs it at logon).</div>
+    </div>
+  </section>
   <section class="tabpanel" id="tab-howto" role="tabpanel" hidden>
     <div class="howto">
       <div class="panel">
@@ -809,13 +827,27 @@
   }));
 
   /* ---------- tabs ---------- */
-  const TABS = ['dash', 'entries', 'howto'];
+  const TABS = ['dash', 'entries', 'howto', 'lucky13'];
+  /* lucky13 lives in its own app; over HTTPS (Tailscale Serve) it is the /lucky13/ path on this origin,
+     on the box itself it is 127.0.0.1:8013. The frame loads the first time the tab opens. */
+  const L13_URL = location.protocol === 'https:' ? location.origin + '/lucky13/' : 'http://127.0.0.1:8013/';
+  $('l13open').href = L13_URL;
+  let l13loaded = false;
+  function loadLucky13(){
+    if (l13loaded) return; l13loaded = true;
+    const f = $('l13frame'), note = $('l13note');
+    let ok = false;
+    f.addEventListener('load', () => { ok = true; note.hidden = true; });
+    f.src = L13_URL;
+    setTimeout(() => { if (!ok) note.hidden = false; }, 8000);
+  }
   function showTab(tab){
     [...$('tabs').children].forEach(x => {
       const on = x.dataset.tab === tab;
       x.classList.toggle('on', on); x.setAttribute('aria-selected', String(on));
     });
     TABS.forEach(t => { $('tab-' + t).hidden = t !== tab; });
+    if (tab === 'lucky13') loadLucky13();
     if (tab === 'dash' && chart1) { [chart1, chart2, chart3, chart4].forEach(c => c && c.resize()); }   // canvases sized while hidden read 0
   }
   $('tabs').addEventListener('click', e => {
