@@ -252,7 +252,7 @@
   .stay input{width:16px;height:16px;margin:0;accent-color:var(--cyan);cursor:pointer;flex:0 0 auto}
   .lockactions{margin-top:14px;display:flex;justify-content:flex-end}
 
-  /* live market strip under the header: crypto (Binance 24h ticker) + US market ETFs (stockanalysis quotes) */
+  /* live market strip under the header: crypto (Binance 24h ticker) + US market ETFs (CNBC quotes) */
   .mkt{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
   .mkt .mktlab{
     font:700 12px var(--font);letter-spacing:.16em;color:var(--cyan);margin-right:4px;
@@ -553,8 +553,8 @@
       <div class="panel">
         <h2>GOOD TO KNOW</h2>
         <ul class="steps">
-          <li>Crypto prices come from Binance; PANW and the <b>S&amp;P 500</b> from stockanalysis.com (split/dividend-adjusted); exchange rates from the ECB via Frankfurter. AED is pegged 3.6725, USDT counts 1:1 with USD.</li>
-          <li>The <b>S&amp;P 500</b> is tracked through the <b>SPY</b> ETF (its total-return proxy), and its history &mdash; like PANW's &mdash; covers the last ten years. XAUT history on the exchange starts March 2026; PAXG (also gold) reaches back to 2020.</li>
+          <li>Crypto prices come from Binance; PANW and the <b>S&amp;P 500</b> from CNBC (split-adjusted daily closes); exchange rates from the ECB via Frankfurter. AED is pegged 3.6725, USDT counts 1:1 with USD.</li>
+          <li>The <b>S&amp;P 500</b> is tracked through the <b>SPY</b> ETF, and its history &mdash; like PANW's &mdash; covers the last ten years. XAUT history on the exchange starts March 2026; PAXG (also gold) reaches back to 2020.</li>
           <li>These are estimates from historical closing prices &mdash; not brokerage records or advice.</li>
         </ul>
       </div>
@@ -571,7 +571,7 @@
     { sym:'SOL',  pair:'SOLUSDT', color:getCSS('--sol') },
     { sym:'PAXG', pair:'PAXGUSDT', color:getCSS('--paxg') },   // Pax Gold - gold-pegged token
     { sym:'XAUT', pair:'XAUTUSDT', color:getCSS('--xaut') },   // Tether Gold - gold-pegged token
-    { sym:'PANW', pair:'PANW', stock:true, color:getCSS('--panw') },   // a stock, not a coin - stockanalysis.com, USD
+    { sym:'PANW', pair:'PANW', stock:true, color:getCSS('--panw') },   // a stock, not a coin - CNBC daily bars, USD
     { sym:'SP500', pair:'SPY', stock:true, color:getCSS('--sp500') },  // the S&P 500, tracked via the SPY ETF
   ];
   const BY_SYM = Object.fromEntries(COINS.map((c,i) => [c.sym, i]));
@@ -971,26 +971,41 @@
   }));
 
   /* ---------- data ---------- */
-  // Stocks: stockanalysis.com serves 10 years of daily history with native CORS
-  // (no proxy, no key), including split/dividend-ADJUSTED closes (`a`) so a
-  // pre-split buy values correctly. One fetch per symbol feeds every period and
-  // every buy-price lookup.
-  async function stockHistory(sym){
-    if (state.stock[sym]) return state.stock[sym];
+  // Stocks: CNBC's keyless chart API serves ten years of daily, split-ADJUSTED bars
+  // with an open CORS header (no proxy, no key), so a pre-split buy values correctly.
+  // stockanalysis.com (the previous source) now sits behind a Cloudflare challenge
+  // that blocks cross-origin fetches, so it is only the fallback. One fetch per
+  // symbol feeds every period and every buy-price lookup.
+  const cnbcStamp = d => d.toISOString().slice(0, 10).replace(/-/g, '') + '000000';   // YYYYMMDDHHMMSS
+  async function stockHistoryCNBC(sym){
+    const to = new Date(Date.now() + 86400000), from = new Date(to.getTime() - 3653 * 86400000);   // ten years
+    const r = await fetch(`https://ts-api.cnbc.com/harmony/app/bars/${encodeURIComponent(sym)}/1D/${cnbcStamp(from)}/${cnbcStamp(to)}/adjusted/EST5EDT.json`);
+    if (!r.ok) throw new Error('stock ' + r.status);
+    const bars = (((await r.json()).barData || {}).priceBars) || [];
+    if (!bars.length) throw new Error('no stock data');
+    return bars.map(b => { const d = String(b.tradeTime || '');     // "20160104000000" -> midnight UTC of that trading day
+      return { t: Date.parse(d.slice(0, 4) + '-' + d.slice(4, 6) + '-' + d.slice(6, 8) + 'T00:00:00Z'), p: parseFloat(b.close) }; });
+  }
+  async function stockHistorySA(sym){
     const r = await fetch(`https://stockanalysis.com/api/symbol/s/${sym}/history?range=10Y&period=Daily`);
     if (!r.ok) throw new Error('stock ' + r.status);
     const j = await r.json();
     if (j.status !== 200 || !Array.isArray(j.data) || !j.data.length) throw new Error('no stock data');
-    const pts = j.data
-      .map(x => ({ t: Date.parse(x.t + 'T00:00:00Z'), p: (x.a != null ? x.a : x.c) }))
-      .filter(x => x.p != null).sort((a,b) => a.t - b.t);          // ascending for forward-fill
-    state.stock[sym] = pts; return pts;
+    return j.data.map(x => ({ t: Date.parse(x.t + 'T00:00:00Z'), p: (x.a != null ? x.a : x.c) }));
+  }
+  async function stockHistory(sym){
+    if (state.stock[sym]) return state.stock[sym];
+    let pts, src = 'CNBC';
+    try { pts = await stockHistoryCNBC(sym); }
+    catch (e) { pts = await stockHistorySA(sym); src = 'stockanalysis.com'; }
+    pts = pts.filter(x => x.p != null && !isNaN(x.p) && !isNaN(x.t)).sort((a,b) => a.t - b.t);   // ascending for forward-fill
+    state.stockSrc = src; state.stock[sym] = pts; return pts;
   }
 
   async function fetchKlines(coin, p){
     if (coin.stock) {
-      try { return { src:'stockanalysis.com', pts: await stockHistory(coin.pair) }; }   // pair is the exchange symbol (e.g. SPY), sym is the display label
-      catch (e) { return { src:'stockanalysis.com', pts: [] }; }   // non-fatal: crypto still renders, the stock line is just omitted
+      try { return { src: state.stockSrc || 'CNBC', stock: true, pts: await stockHistory(coin.pair) }; }   // pair is the exchange symbol (e.g. SPY), sym is the display label
+      catch (e) { return { src: state.stockSrc || 'CNBC', stock: true, pts: [] }; }   // non-fatal: crypto still renders, the stock line is just omitted
     }
     for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) {
       try {
@@ -1015,7 +1030,7 @@
   async function fetchPriceAt(coin, date, time){   // USD close at that date (and hour, if given)
     const pair = coin.pair, key = buyKey(pair, date, time);
     if (state.buy[key]) return state.buy[key];
-    if (coin.stock) {                                // stockanalysis.com daily adjusted close at/before the buy day
+    if (coin.stock) {                                // daily split-adjusted close at/before the buy day
       const wantTs = time ? Date.parse(`${date}T${time}`) : Date.parse(date+'T00:00:00Z');
       const boundary = Date.parse(date+'T23:59:59Z');   // stocks are daily; a time only sets when the holding starts
       const pts = await stockHistory(pair);
@@ -1099,7 +1114,7 @@
       stockHistory('GLD').catch(() => {});   // spot-GOLD reference for the price chart; non-fatal
       if (!state.cache[key]) {
         const res = await Promise.all(COINS.map(c => fetchKlines(c, p)));
-        state.cache[key] = { src: (res.find(r => r.src !== 'stockanalysis.com') || res[0]).src, series: res.map(r => r.pts) };
+        state.cache[key] = { src: (res.find(r => !r.stock) || res[0]).src, series: res.map(r => r.pts) };
       }
       // a single entry's buy-price miss must not sink the whole load; build() drops entries with no buy
       await Promise.all(state.entries.map(e => fetchPriceAt(COINS[BY_SYM[e.sym]], e.date, e.time).catch(() => {})));
@@ -1302,7 +1317,7 @@
       `<tr class="total"><td>TOTAL</td><td></td><td>${CUR_FMT[cur].pre}${fmtMoney(d.totalInv,0)}</td><td></td><td></td>
         <td>${CUR_FMT[cur].pre}${fmtMoney(last,0)}</td><td class="${pl>=0?'gain':'loss'}">${plPct>=0?'+':''}${plPct.toFixed(2)}%</td><td></td></tr>` : '');
 
-    $('note').textContent = `Crypto prices from ${d.src} (USDT pairs); PANW from stockanalysis.com (daily split/dividend-adjusted close). ` +
+    $('note').textContent = `Crypto prices from ${d.src} (USDT pairs); PANW from ${state.stockSrc || 'CNBC'} (daily split-adjusted close). ` +
       `AED at the fixed 3.6725 peg; USDT counted 1:1 with USD. ${state.fxNote} ` +
       `Each entry's buy price is the close on its purchase date (or hour, if a time is set), and its value counts from that moment - the portfolio line steps up as entries come in. ` +
       `"Put in" converts what you spent at the buy date's FX. The period buttons only change the chart window.`;
@@ -1352,8 +1367,9 @@
 
 /* ---------- live market strip (public prices only, independent of the vault) ----------
    Crypto from Binance's 24h ticker (data-api.binance.vision, then api.binance.com; CoinGecko as
-   a last resort). US market via the SPY / DIA / QQQ / IWM ETFs from stockanalysis.com's quote
-   endpoint (native CORS, no key - the same source as PANW). Refreshes every minute. */
+   a last resort). US market via the SPY / DIA / QQQ / IWM ETFs from CNBC's quote endpoint
+   (open CORS, no key - the same source as PANW's history; stockanalysis.com is the fallback).
+   Refreshes every minute. */
 (() => {
   const CRYPTO = [
     { sym:'BTC', id:'bitcoin',     color:'var(--btc)' },
@@ -1407,11 +1423,21 @@
     return CRYPTO.map(c => { const r = d[c.id];
       return { ...c, price: r ? r.usd : null, chg: r ? r.usd_24h_change : null, err: r ? null : 'no data' }; });
   }
-  async function stock(s){
-    try {
-      const d = (await getJSON(`https://stockanalysis.com/api/quotes/s/${s.sym.toLowerCase()}`)).data;
-      return { ...s, price: d.p, chg: d.cp, state: d.ms, err: null };
-    } catch (e) { return { ...s, price: null, chg: null, err: 'unavailable' }; }
+  const MKT_STATE = { REG_MKT:'open', PRE_MKT:'pre-market', POST_MKT:'after hours', CLOSED:'closed' };
+  const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/[,%+\s]/g, '')); return isNaN(n) ? null : n; };
+  async function stocks(){
+    try {                                                // CNBC: every symbol in one keyless call with an open CORS header
+      const j = await getJSON('https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=' + STOCKS.map(s => s.sym).join('|') + '&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json');
+      const by = Object.fromEntries((((j.FormattedQuoteResult || {}).FormattedQuote) || []).map(q => [q.symbol, q]));
+      const out = STOCKS.map(s => { const q = by[s.sym], price = q ? num(q.last) : null;
+        return price == null ? { ...s, price: null, chg: null, err: 'unavailable' }
+                             : { ...s, price, chg: num(q.change_pct), state: MKT_STATE[q.curmktstatus] || (q.curmktstatus || '').toLowerCase(), err: null }; });
+      if (out.some(q => !q.err)) return out;
+    } catch (e) {}
+    return Promise.all(STOCKS.map(async s => {           // fallback: stockanalysis.com (behind a Cloudflare challenge at the time of writing)
+      try { const d = (await getJSON(`https://stockanalysis.com/api/quotes/s/${s.sym.toLowerCase()}`)).data; return { ...s, price: d.p, chg: d.cp, state: d.ms, err: null }; }
+      catch (e) { return { ...s, price: null, chg: null, err: 'unavailable' }; }
+    }));
   }
   function chip(q, basis){
     const el = document.createElement('span');
@@ -1432,7 +1458,7 @@
   async function refresh(){
     const [cr, st] = await Promise.all([
       crypto().catch(() => CRYPTO.map(c => ({ ...c, price:null, chg:null, err:'unavailable' }))),
-      Promise.all(STOCKS.map(stock)),
+      stocks(),
     ]);
     const frag = document.createDocumentFragment();
     cr.forEach(q => frag.appendChild(chip(q, '24h change')));
